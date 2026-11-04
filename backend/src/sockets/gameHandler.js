@@ -113,7 +113,7 @@ async function startCountdown(io, roomId) {
     return
   }
 
-  let timeLeft = 5
+  let timeLeft = 30
   io.to(roomId).emit('countdown_tick', { timeLeft })
 
   const countdownInterval = setInterval(async () => {
