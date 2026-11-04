@@ -126,10 +126,10 @@ export default function Wallet() {
         <div className="bg-[#1e3a5f] border-2 border-yellow-500 rounded-xl p-4 mb-4">
           <p className="text-sm text-gray-300 mb-2">Send your deposit to this Telebirr number:</p>
           <div className="flex items-center justify-between bg-[#112A46] rounded-lg p-3">
-            <span className="text-2xl font-black text-yellow-400 tracking-wider">0930702649</span>
+            <span className="text-2xl font-black text-yellow-400 tracking-wider">0989002307</span>
             <button
               onClick={() => {
-                navigator.clipboard.writeText('0930702649');
+                navigator.clipboard.writeText('0989002307');
                 alert('Number copied!');
               }}
               className="bg-yellow-500 text-[#112A46] px-3 py-1 rounded text-sm font-bold"
@@ -137,7 +137,7 @@ export default function Wallet() {
               Copy
             </button>
           </div>
-          <p className="text-xs text-gray-400 mt-2">Account Name: <strong>Kedir Shifaw kebede</strong></p>
+          <p className="text-xs text-gray-400 mt-2">Account Name: <strong>Kenaw Nuru Muhabe</strong></p>
           <p className="text-xs text-gray-400">After sending, paste the SMS receipt below.</p>
         </div>
         <div className="mb-3">

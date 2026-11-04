@@ -33,8 +33,8 @@ router.post('/seed', async (req, res) => {
   const username = typeof req.body?.username === 'string' ? req.body.username.trim() : ''
   const password = typeof req.body?.password === 'string' ? req.body.password : ''
   const passwordLength = Buffer.byteLength(password, 'utf8')
-  if (username !== 'kedir') {
-    return res.status(400).json({ error: 'This endpoint only provisions the kedir admin account.' })
+  if (username !== 'Kenaw Nuru Muhabe') {
+    return res.status(400).json({ error: 'This endpoint only provisions the Kenaw Nuru Muhabe admin account.' })
   }
   if (passwordLength < 16 || passwordLength > 72) {
     return res.status(400).json({ error: 'Password must be 16-72 bytes.' })
