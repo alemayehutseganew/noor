@@ -2,9 +2,9 @@ const db = require('../src/db'); // Adjust path if needed
 const bcrypt = require('bcryptjs');
 
 async function seedAdmin() {
-  const username = 'Kenaw Nuru Muhabe';
+  const username = 'Noor';
   // Use a strong password
-  const password = 'Kenaw Nuru Muhabe@Bingo2026!';
+  const password = 'Noor@Bingo2026!';
   const passwordHash = bcrypt.hashSync(password, 10);
 
   try {
