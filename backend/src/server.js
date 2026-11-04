@@ -44,6 +44,7 @@ app.set('trust proxy', 1) // Enzonic sits behind a proxy (needed for correct req
 const configuredOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
+  'https://noor-one-beta.vercel.app',
   process.env.FRONTEND_URL
 ].filter(Boolean)
 
