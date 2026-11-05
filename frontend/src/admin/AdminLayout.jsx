@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 export default function AdminLayout() {
+  const { t } = useTranslation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -12,10 +14,10 @@ export default function AdminLayout() {
   };
 
   const navItems = [
-    { name: 'Dashboard', path: '/admin/dashboard', icon: '📊' },
-    { name: 'Users', path: '/admin/users', icon: '👥' },
-    { name: 'Games', path: '/admin/games', icon: '🎮' },
-    { name: 'Payments', path: '/admin/payments', icon: '💳' },
+    { name: t('dashboard'), path: '/admin/dashboard', icon: '📊' },
+    { name: t('users'), path: '/admin/users', icon: '👥' },
+    { name: t('games'), path: '/admin/games', icon: '🎮' },
+    { name: t('payments'), path: '/admin/payments', icon: '💳' },
   ];
 
   return (
@@ -29,7 +31,7 @@ export default function AdminLayout() {
 
       <div className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-800 shadow-2xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-6">
-          <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500 mb-8 hidden lg:block">GOBINGO ADMIN</h2>
+          <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500 mb-8 hidden lg:block">{t('adminTitle')}</h2>
           <nav className="space-y-2 mt-16 lg:mt-0">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
@@ -47,7 +49,7 @@ export default function AdminLayout() {
             })}
             <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-red-400 hover:bg-red-500/10 transition-all mt-8">
               <span>🚪</span>
-              <span className="font-medium">Logout</span>
+              <span className="font-medium">{t('logout')}</span>
             </button>
           </nav>
         </div>

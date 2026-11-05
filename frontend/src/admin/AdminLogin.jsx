@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { fetchApi } from '../services/api'
 
 export default function AdminLogin() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -22,32 +24,32 @@ export default function AdminLogin() {
         localStorage.setItem('adminToken', data.token)
         navigate('/admin/dashboard')
       } else {
-        setError(data.error || 'Login failed')
+        setError(data.error || t('loginFailed'))
       }
     } catch (e) {
-      setError('Network error')
+      setError(t('networkError'))
     }
   }
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
       <form onSubmit={login} className="bg-gray-800 p-6 rounded-lg w-80 space-y-4">
-        <h1 className="text-2xl font-bold text-center">Admin Login</h1>
+        <h1 className="text-2xl font-bold text-center">{t('adminLogin')}</h1>
         {error && <p className="text-red-400 text-sm">{error}</p>}
         <input
           className="w-full bg-gray-700 p-2 rounded"
-          placeholder="Username"
+          placeholder={t('username')}
           value={username}
           onChange={(e) => setUsername(e.target.value)}
         />
         <input
           type="password"
           className="w-full bg-gray-700 p-2 rounded"
-          placeholder="Password"
+          placeholder={t('password')}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-        <button className="w-full bg-blue-600 py-2 rounded font-bold">Login</button>
+        <button className="w-full bg-blue-600 py-2 rounded font-bold">{t('login')}</button>
       </form>
     </div>
   )

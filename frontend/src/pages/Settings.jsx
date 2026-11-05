@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 export default function Settings() {
   const navigate = useNavigate()
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [soundEnabled, setSoundEnabled] = useState(localStorage.getItem('soundEnabled') !== 'false')
 
   const toggleSound = () => {
@@ -24,25 +24,25 @@ export default function Settings() {
 
   return (
     <div className="min-h-screen bg-[#112A46] text-white p-4">
-      <button onClick={() => navigate('/')} className="mb-4 text-yellow-400">← Back</button>
-      <h1 className="text-2xl font-bold mb-4">Settings</h1>
+      <button onClick={() => navigate('/')} className="mb-4 text-yellow-400">← {t('back')}</button>
+      <h1 className="text-2xl font-bold mb-4">{t('settings')}</h1>
 
       <div className="bg-white/10 rounded-lg p-4 mb-4 flex items-center justify-between">
-        <span>Sound</span>
+        <span>{t('sound')}</span>
         <button onClick={toggleSound} className={`px-3 py-1 rounded ${soundEnabled ? 'bg-green-500' : 'bg-gray-500'}`}>
-          {soundEnabled ? 'ON' : 'OFF'}
+          {soundEnabled ? t('on') : t('off')}
         </button>
       </div>
 
       <div className="bg-white/10 rounded-lg p-4 mb-4 flex items-center justify-between">
-        <span>Language</span>
+        <span>{t('language')}</span>
         <button onClick={toggleLanguage} className="bg-white text-[#112A46] text-xs font-bold px-3 py-1.5 rounded-full">
           {i18n.language === 'en' ? 'AM' : 'EN'}
         </button>
       </div>
 
       <button onClick={clearCache} className="w-full bg-red-500 text-white font-bold py-2 rounded">
-        Clear Cache
+        {t('clearCache')}
       </button>
     </div>
   )

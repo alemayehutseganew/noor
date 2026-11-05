@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useWallet } from '../WalletContext'
 import { fetchApi } from '../services/api'
 
 export default function Wallet() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { balance, loading, refreshBalance } = useWallet()
   const [user, setUser] = useState(null)
   const [submitting, setSubmitting] = useState(false)
@@ -61,16 +63,16 @@ export default function Wallet() {
       })
       const data = await res.json()
       if (data.success) {
-        setMessage('Deposit verified successfully!')
+        setMessage(t('depositVerified'))
         setMessageType('success')
         loadUser()
         refreshBalance().catch((err) => console.error('Failed to refresh wallet balance:', err))
       } else {
-        setMessage(data.error || 'Verification failed')
+        setMessage(data.error || t('verificationFailed'))
         setMessageType('error')
       }
     } catch (e) {
-      setMessage('Network error')
+      setMessage(t('networkError'))
       setMessageType('error')
     } finally {
       setSubmitting(false)
@@ -89,16 +91,16 @@ export default function Wallet() {
       })
       const data = await res.json()
       if (data.success) {
-        setMessage(data.message || 'Withdrawal submitted')
+        setMessage(data.message || t('withdrawalSubmitted'))
         setMessageType('success')
         loadUser()
         refreshBalance().catch((err) => console.error('Failed to refresh wallet balance:', err))
       } else {
-        setMessage(data.error || 'Withdrawal failed')
+        setMessage(data.error || t('withdrawalFailed'))
         setMessageType('error')
       }
     } catch (e) {
-      setMessage('Network error')
+      setMessage(t('networkError'))
       setMessageType('error')
     } finally {
       setSubmitting(false)
@@ -109,12 +111,12 @@ export default function Wallet() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0f2027] via-[#203a43] to-[#2c5364] text-white p-4">
-      <button onClick={() => navigate('/')} className="mb-4 text-yellow-400">← Back</button>
-      <h1 className="text-2xl font-bold mb-4">Wallet</h1>
+      <button onClick={() => navigate('/')} className="mb-4 text-yellow-400">← {t('back')}</button>
+      <h1 className="text-2xl font-bold mb-4">{t('wallet')}</h1>
 
       {/* Balance Card */}
       <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mb-4">
-        <p className="text-sm text-gray-300 uppercase font-bold">Balance</p>
+        <p className="text-sm text-gray-300 uppercase font-bold">{t('balance')}</p>
         <p className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500">
           ETB {balance}
         </p>
@@ -122,39 +124,39 @@ export default function Wallet() {
 
       {/* Manual Deposit */}
       <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mb-4">
-        <h2 className="text-lg font-bold mb-3">Manual Deposit (Telebirr)</h2>
+        <h2 className="text-lg font-bold mb-3">{t('manualDeposit')}</h2>
         <div className="bg-[#1e3a5f] border-2 border-yellow-500 rounded-xl p-4 mb-4">
-          <p className="text-sm text-gray-300 mb-2">Send your deposit to this Telebirr number:</p>
+          <p className="text-sm text-gray-300 mb-2">{t('sendDeposit')}</p>
           <div className="flex items-center justify-between bg-[#112A46] rounded-lg p-3">
             <span className="text-2xl font-black text-yellow-400 tracking-wider">0989002307</span>
             <button
               onClick={() => {
                 navigator.clipboard.writeText('0989002307');
-                alert('Number copied!');
+                alert(t('numberCopied'))
               }}
               className="bg-yellow-500 text-[#112A46] px-3 py-1 rounded text-sm font-bold"
             >
-              Copy
+              {t('copy')}
             </button>
           </div>
-          <p className="text-xs text-gray-400 mt-2">Account Name: <strong>Kenaw Nuru Muhabe</strong></p>
-          <p className="text-xs text-gray-400">After sending, paste the SMS receipt below.</p>
+          <p className="text-xs text-gray-400 mt-2">{t('accountName')} <strong>Kenaw Nuru Muhabe</strong></p>
+          <p className="text-xs text-gray-400">{t('pasteReceipt')}</p>
         </div>
         <div className="mb-3">
-          <label className="block text-sm mb-1">Amount to Deposit (ETB)</label>
+          <label className="block text-sm mb-1">{t('amountToDeposit')}</label>
           <input
             type="number"
-            placeholder="e.g. 50"
+            placeholder={t('exampleAmount')}
             value={depositAmount}
             onChange={(e) => setDepositAmount(e.target.value)}
             className="w-full bg-[#1e3a5f] text-white placeholder-gray-400 border-2 border-gray-600 rounded-lg p-3 focus:outline-none focus:border-yellow-500"
           />
         </div>
         <div className="mb-3">
-          <label className="block text-sm mb-1">Telebirr Receipt Reference ID</label>
+          <label className="block text-sm mb-1">{t('receiptReference')}</label>
           <input
             type="text"
-            placeholder="e.g. CJU5RZ5NM3"
+            placeholder={t('exampleReference')}
             value={reference}
             onChange={(e) => setReference(e.target.value)}
             className="w-full bg-[#1e3a5f] text-white placeholder-white border-2 border-gray-600 rounded-lg p-3"
@@ -165,24 +167,24 @@ export default function Wallet() {
           disabled={loading || submitting}
           className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-[#0f2027] font-bold py-2 rounded disabled:opacity-50 mt-2"
         >
-          Verify & Deposit
+          {t('verifyDeposit')}
         </button>
       </div>
 
       {/* Withdraw */}
       <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mb-4">
-        <h2 className="text-lg font-bold mb-2">Withdraw</h2>
-        <p className="text-sm text-gray-300 mb-2">Minimum withdrawal: 100 ETB</p>
+        <h2 className="text-lg font-bold mb-2">{t('withdraw')}</h2>
+        <p className="text-sm text-gray-300 mb-2">{t('minimumWithdrawal')}</p>
         <input
           type="number"
-          placeholder="Amount"
+          placeholder={t('amount')}
           value={withdrawAmount}
           onChange={(e) => setWithdrawAmount(e.target.value)}
           className="w-full bg-[#1e3a5f] text-white placeholder-white border-2 border-gray-600 rounded-lg p-3 mb-2"
         />
         <input
           type="text"
-          placeholder="Phone number"
+          placeholder={t('phoneNumber')}
           value={phoneNumber}
           onChange={(e) => setPhoneNumber(e.target.value)}
           className="w-full bg-[#1e3a5f] text-white placeholder-white border-2 border-gray-600 rounded-lg p-3 mb-2"
@@ -192,7 +194,7 @@ export default function Wallet() {
           disabled={loading || submitting}
           className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-[#0f2027] font-bold py-2 rounded disabled:opacity-50 mt-2"
         >
-          Withdraw
+          {t('withdraw')}
         </button>
       </div>
 

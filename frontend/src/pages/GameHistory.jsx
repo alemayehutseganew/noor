@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { fetchApi } from '../services/api'
 
 export default function GameHistory() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -18,12 +20,12 @@ export default function GameHistory() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0f2027] via-[#203a43] to-[#2c5364] text-white p-4">
-      <button onClick={() => navigate('/')} className="mb-4 text-yellow-400">← Back</button>
-      <h1 className="text-2xl font-bold mb-4">Game History</h1>
+      <button onClick={() => navigate('/')} className="mb-4 text-yellow-400">← {t('back')}</button>
+      <h1 className="text-2xl font-bold mb-4">{t('gameHistory')}</h1>
       {loading ? (
-        <p>Loading...</p>
+        <p>{t('loading')}</p>
       ) : history.length === 0 ? (
-        <p>No history yet.</p>
+        <p>{t('noHistory')}</p>
       ) : (
         <div className="space-y-2">
           {history.map((h, i) => (
@@ -34,12 +36,12 @@ export default function GameHistory() {
               }`}
             >
               <div className="flex justify-between items-start">
-                <span>Stake: {h.stake_amount}</span>
+                <span>{t('stake')}: {h.stake_amount}</span>
                 <span className="text-sm status-badge">${
-                  h.is_winner ? 'Won' : 'Lost'
+                  t(h.is_winner ? 'won' : 'lost')
                 }</span>
               </div>
-              <span>Date: {new Date(h.joined_at).toLocaleString()}</span>
+              <span>{t('date')}: {new Date(h.joined_at).toLocaleString()}</span>
             </div>
           ))}
         </div>

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { fetchApi } from '../services/api'
 
 export default function Leaderboard() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [leaders, setLeaders] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -17,12 +19,12 @@ export default function Leaderboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0f2027] via-[#203a43] to-[#2c5364] text-white p-4">
-      <button onClick={() => navigate('/')} className="mb-4 text-yellow-400">← Back</button>
-      <h1 className="text-2xl font-bold mb-4">Leaderboard</h1>
+      <button onClick={() => navigate('/')} className="mb-4 text-yellow-400">← {t('back')}</button>
+      <h1 className="text-2xl font-bold mb-4">{t('leaderboard')}</h1>
       {loading ? (
-        <p>Loading...</p>
+        <p>{t('loading')}</p>
       ) : leaders.length === 0 ? (
-        <p>No leaders yet.</p>
+        <p>{t('noLeaders')}</p>
       ) : (
         <div className="space-y-4">
           {leaders.map((l, i) => (
@@ -44,7 +46,7 @@ export default function Leaderboard() {
                 <span className="text-2xl font-bold ${
                   i === 0 ? 'text-yellow-400' : i === 1 ? 'text-gray-300' : i === 2 ? 'text-orange-400' : ''
                 }">
-                  {i + 1}. {l.first_name || 'Player'}
+                  {i + 1}. {l.first_name || t('player')}
                 </span>
                 <span className="text-lg ${
                   i === 0 ? 'text-yellow-300' : i === 1 ? 'text-gray-300' : i === 2 ? 'text-orange-300' : ''

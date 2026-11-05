@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { fetchApi } from '../services/api';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeGames: 0,
@@ -39,18 +41,18 @@ export default function AdminDashboard() {
     fetchStats();
   }, []);
 
-  if (loading) return <div className="text-white p-6">Loading dashboard data...</div>;
+  if (loading) return <div className="text-white p-6">{t('dashboardLoading')}</div>;
 
   const metrics = [
-    { id: 'users', title: 'Total Users', value: stats.totalUsers, color: 'text-blue-400', bg: 'bg-blue-500/10', icon: '👥', route: '/admin/users' },
-    { id: 'games', title: 'Active Games', value: stats.activeGames, color: 'text-green-400', bg: 'bg-green-500/10', icon: '🎮', route: '/admin/games' },
-    { id: 'wagered', title: 'Total Wagered', value: `ETB ${stats.totalWagered}`, color: 'text-yellow-400', bg: 'bg-yellow-500/10', icon: '💰', route: '/admin/payments' },
-    { id: 'profit', title: 'Platform Profit', value: `ETB ${stats.platformProfit}`, color: 'text-purple-400', bg: 'bg-purple-500/10', icon: '📈', route: '/admin/payments' },
+    { id: 'users', title: t('totalUsers'), value: stats.totalUsers, color: 'text-blue-400', bg: 'bg-blue-500/10', icon: '👥', route: '/admin/users' },
+    { id: 'games', title: t('activeGames'), value: stats.activeGames, color: 'text-green-400', bg: 'bg-green-500/10', icon: '🎮', route: '/admin/games' },
+    { id: 'wagered', title: t('totalWagered'), value: `ETB ${stats.totalWagered}`, color: 'text-yellow-400', bg: 'bg-yellow-500/10', icon: '💰', route: '/admin/payments' },
+    { id: 'profit', title: t('platformProfit'), value: `ETB ${stats.platformProfit}`, color: 'text-purple-400', bg: 'bg-purple-500/10', icon: '📈', route: '/admin/payments' },
   ];
 
   return (
     <div className="p-4 lg:p-8">
-      <h1 className="text-3xl font-bold text-white mb-8">Dashboard Overview</h1>
+      <h1 className="text-3xl font-bold text-white mb-8">{t('dashboardOverview')}</h1>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {metrics.map((m) => (
@@ -83,37 +85,37 @@ export default function AdminDashboard() {
               ✕
             </button>
             
-            <h2 className="text-2xl font-bold text-white mb-4">Metric Details</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">{t('metricDetails')}</h2>
             
             <div className="space-y-4 text-slate-300">
               {selectedMetric === 'users' && (
                 <>
-                  <p><strong>Total Users:</strong> {stats.totalUsers}</p>
-                  <p className="text-sm text-slate-400">This is the total number of unique Telegram accounts that have registered in the database.</p>
+                  <p><strong>{t('totalUsers')}:</strong> {stats.totalUsers}</p>
+                  <p className="text-sm text-slate-400">{t('usersDescription')}</p>
                 </>
               )}
               {selectedMetric === 'games' && (
                 <>
-                  <p><strong>Active Games:</strong> {stats.activeGames}</p>
-                  <p className="text-sm text-slate-400">This counts the number of game rooms currently in the "WAITING", "COUNTDOWN", or "PLAYING" state.</p>
+                  <p><strong>{t('activeGames')}:</strong> {stats.activeGames}</p>
+                  <p className="text-sm text-slate-400">{t('gamesDescription')}</p>
                 </>
               )}
               {selectedMetric === 'wagered' && (
                 <>
-                  <p><strong>Total Wagered:</strong> ETB {stats.totalWagered}</p>
+                  <p><strong>{t('totalWagered')}:</strong> ETB {stats.totalWagered}</p>
                   <div className="bg-slate-900 p-3 rounded-lg text-sm font-mono mt-2">
-                    Math: Sum of all 'ENTRY_FEE' amounts from the financial ledger.
+                    {t('wageredMath')}
                   </div>
                 </>
               )}
               {selectedMetric === 'profit' && (
                 <>
-                  <p><strong>Platform Profit:</strong> ETB {stats.platformProfit}</p>
+                  <p><strong>{t('platformProfit')}:</strong> ETB {stats.platformProfit}</p>
                   <div className="bg-slate-900 p-3 rounded-lg text-sm font-mono mt-2">
-                    Math: Total Wagered (ETB {stats.totalWagered}) - Total Payouts (ETB {stats.totalPayouts})<br/>
-                    = ETB {stats.platformProfit}
+                    {t('profitMath', { wagered: stats.totalWagered, payouts: stats.totalPayouts })}<br/>
+                    {t('profitMathResult', { profit: stats.platformProfit })}
                   </div>
-                  <p className="text-sm text-slate-400 mt-2">This represents the house rake (15% cut) accumulated over time.</p>
+                  <p className="text-sm text-slate-400 mt-2">{t('profitDescription')}</p>
                 </>
               )}
             </div>
@@ -122,7 +124,7 @@ export default function AdminDashboard() {
               onClick={() => setSelectedMetric(null)}
               className="mt-6 w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-colors"
             >
-              Close
+              {t('close')}
             </button>
           </div>
         </div>

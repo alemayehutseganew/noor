@@ -1,27 +1,38 @@
-const db = require('../src/db'); // Adjust path if needed
-const bcrypt = require('bcryptjs');
+const db = require('../src/db')
+const bcrypt = require('bcryptjs')
 
 async function seedAdmin() {
-  const username = 'Noor';
-  // Use a strong password
-  const password = 'Noor@Bingo2026!';
-  const passwordHash = bcrypt.hashSync(password, 10);
+  const username = 'Noor'
+  const plainPassword = 'Noor@Bingo2026!'
+  let succeeded = false
 
   try {
-    const existing = await db('admins').where({ username }).first();
+    const hashedPassword = await bcrypt.hash(plainPassword, 10)
+    const existing = await db('admins').where({ username }).first()
     if (existing) {
-      await db('admins').where({ username }).update({ password_hash: passwordHash });
-      console.log(`✅ Admin '${username}' password updated.`);
+      await db('admins').where({ username }).update({ password_hash: hashedPassword })
     } else {
-      await db('admins').insert({ username, password_hash: passwordHash });
-      console.log(`✅ Admin '${username}' created.`);
+      await db('admins').insert({ username, password_hash: hashedPassword })
     }
-    console.log(`🔑 Login with Username: ${username} and Password: ${password}`);
+    succeeded = true
   } catch (err) {
-    console.error('❌ Admin seed error:', err.message);
+    console.error('❌ Admin seed error:', err.message)
   } finally {
-    await db.destroy();
+    try {
+      await db.destroy()
+    } catch (err) {
+      console.error('❌ Admin database cleanup error:', err.message)
+      succeeded = false
+    }
   }
+
+  if (!succeeded) {
+    process.exitCode = 1
+    return
+  }
+
+  console.log('✅ Admin credentials successfully updated for user:', username)
+  process.exit(0)
 }
 
-seedAdmin();
+seedAdmin()

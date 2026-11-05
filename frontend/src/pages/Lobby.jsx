@@ -102,7 +102,7 @@ export default function Lobby() {
           GOBINGO
         </h1>
         <p className="text-gray-400 font-medium mt-2 tracking-widest uppercase text-xs">
-          Play • Win • Repeat
+          {t('playTagline')}
         </p>
       </div>
 
@@ -122,7 +122,7 @@ export default function Lobby() {
 
               {/* Left side: Stake Value */}
               <div className="flex flex-col">
-                <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Stake</span>
+                <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">{t('stake')}</span>
                 <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500">
                   {stake} <span className="text-sm">ETB</span>
                 </span>
@@ -133,7 +133,7 @@ export default function Lobby() {
                 onClick={() => handleJoin(stake)}
                 className="bg-gradient-to-r from-yellow-400 to-orange-500 text-[#0f2027] font-black text-lg px-6 py-3 rounded-xl shadow-lg shadow-orange-500/30 group-hover:scale-105 active:scale-95 transition-all"
               >
-                JOIN
+                {t('joinGame')}
               </button>
             </div>
           ))}
@@ -142,7 +142,7 @@ export default function Lobby() {
 
       {/* Bottom Decorative Element */}
       <div className="relative z-10 text-center pb-6">
-        <p className="text-xs text-gray-500">Powered by Telebirr • Secure Payments</p>
+        <p className="text-xs text-gray-500">{t('securePayments')}</p>
       </div>
 
       {/* Slide-out Menu Drawer */}
@@ -156,14 +156,14 @@ export default function Lobby() {
       <div className="flex justify-between items-center mb-8 pb-4 border-b border-white/10">
         <div>
           <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">GOBINGO</h2>
-          <p className="text-xs text-gray-400 mt-1">Player Menu</p>
+          <p className="text-xs text-gray-400 mt-1">{t('playerMenu')}</p>
         </div>
         <button onClick={() => setIsMenuOpen(false)} className="text-white text-3xl hover:text-yellow-400 transition-colors">&times;</button>
       </div>
 
       {/* Profile Snapshot */}
       <div className="bg-white/5 backdrop-blur-md rounded-2xl p-4 mb-6 border border-white/10">
-        <p className="text-xs text-gray-400 uppercase font-bold">Wallet Balance</p>
+        <p className="text-xs text-gray-400 uppercase font-bold">{t('walletBalance')}</p>
         <p className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500">
           ETB {walletBalance.toFixed(2)}
         </p>
@@ -173,18 +173,18 @@ export default function Lobby() {
       <nav className="flex flex-col gap-2">
         <button onClick={() => { setIsMenuOpen(false); navigate('/wallet'); }} className="flex items-center gap-3 w-full text-left text-white font-bold text-base p-3 rounded-xl hover:bg-white/10 transition-all group">
           <span className="text-2xl group-hover:scale-110 transition-transform">💰</span> 
-          <span>My Wallet</span>
+          <span>{t('myWallet')}</span>
         </button>
         <button onClick={() => { setIsMenuOpen(false); setHelpOpen(true); }} className="flex items-center gap-3 w-full text-left text-white font-bold text-base p-3 rounded-xl hover:bg-white/10 transition-all group">
           <span className="text-2xl group-hover:scale-110 transition-transform">❓</span> 
-          <span>Help & Rules</span>
+          <span>{t('helpRules')}</span>
         </button>
       </nav>
 
       {/* Logout at bottom */}
       <div className="mt-auto pt-6 border-t border-white/10">
         <button onClick={handleLogout} className="w-full bg-red-600/20 text-red-400 border border-red-600/30 font-bold py-3 rounded-xl hover:bg-red-600 hover:text-white transition-all">
-          Logout
+          {t('logout')}
         </button>
       </div>
     </div>
@@ -198,9 +198,9 @@ export default function Lobby() {
             className="bg-[#0f2027] p-6 rounded-2xl max-w-sm w-full border border-white/10"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-xl font-bold text-yellow-400 mb-4">Help</h2>
-            <p className="text-white text-sm whitespace-pre-wrap">{i18n.language === 'am' ? AMHARIC_INSTRUCTIONS : 'How to Play GOBINGO\n\n1. Choose a stake.\n2. Select a card.\n3. Wait for the game to start.\n4. Tap numbers when called.\n5. Complete a line or 4 corners to win!\n\nGood luck!'}</p>
-            <button onClick={() => setHelpOpen(false)} className="mt-6 w-full bg-yellow-500 text-[#0f2027] font-bold py-3 rounded-xl">Close</button>
+            <h2 className="text-xl font-bold text-yellow-400 mb-4">{t('help')}</h2>
+            <p className="text-white text-sm whitespace-pre-wrap">{i18n.language === 'am' ? AMHARIC_INSTRUCTIONS : t('helpInstructions')}</p>
+            <button onClick={() => setHelpOpen(false)} className="mt-6 w-full bg-yellow-500 text-[#0f2027] font-bold py-3 rounded-xl">{t('close')}</button>
           </div>
         </div>
       )}

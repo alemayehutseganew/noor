@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { fetchApi } from '../services/api';
 import { unlockAudio } from '../utils/bingoSounds';
 
@@ -7,6 +8,7 @@ export default function CardSelection() {
   const [searchParams] = useSearchParams();
   const stake = searchParams.get('stake') || '10';
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [takenCards, setTakenCards] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -47,7 +49,7 @@ export default function CardSelection() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to join room');
+        throw new Error(data.error || t('joinFailed'));
       }
 
       if (data.status === 'spectator') {
@@ -73,9 +75,9 @@ export default function CardSelection() {
             onClick={() => navigate('/')}
             className="text-yellow-500 hover:text-yellow-400 font-bold"
           >
-            ← Back
+            ← {t('back')}
           </button>
-          <h1 className="text-2xl font-bold">Select Card ({stake} ETB)</h1>
+          <h1 className="text-2xl font-bold">{t('selectCard')} ({stake} ETB)</h1>
           <div className="w-12"></div>
         </div>
 

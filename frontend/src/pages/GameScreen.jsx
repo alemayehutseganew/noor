@@ -29,7 +29,7 @@ const GameScreen = () => {
   const stake = parseInt(searchParams.get('stake')) || 10;
   const spectatorFromUrl = searchParams.get('spectator') === 'true';
   const userId = localStorage.getItem('dbUserId');
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const [calledNumbers, setCalledNumbers] = useState([]);
   const [currentBall, setCurrentBall] = useState(null);
@@ -122,16 +122,27 @@ const GameScreen = () => {
       if (isSpectator) {
         setGameResult({
           type: 'loss',
-          title: '🎲 Game Over',
-          message: `The winner is ${data.winnerName || 'a player'}. Better luck next time!`,
+          titleKey: 'gameOver',
+          messageKey: 'winnerIs',
+          messageValues: { name: data.winnerName },
         });
         return;
       }
 
       if (isWinner) {
-        setGameResult({ type: 'win', title: '🎉 Congratulations!', message: `You won ETB ${Number(data.payout).toFixed(2)}!` });
+        setGameResult({
+          type: 'win',
+          titleKey: 'congratulations',
+          messageKey: 'youWon',
+          messageValues: { amount: Number(data.payout).toFixed(2) },
+        });
       } else {
-        setGameResult({ type: 'loss', title: '🎲 Game Over', message: `The winner is ${data.winnerName || 'a player'}. Better luck next time!` });
+        setGameResult({
+          type: 'loss',
+          titleKey: 'gameOver',
+          messageKey: 'winnerIs',
+          messageValues: { name: data.winnerName },
+        });
       }
       setTimeout(() => { setGameResult(null); navigate('/'); }, 5000);
     });
@@ -140,8 +151,8 @@ const GameScreen = () => {
 
       setGameResult((current) => current || {
         type: 'loss',
-        title: '🎲 Game Over',
-        message: 'This round has ended. The next round will be ready shortly.',
+        titleKey: 'gameOver',
+        messageKey: 'roundEnded',
       });
     });
     socket.on('next_game_ready', (data) => {
@@ -213,12 +224,12 @@ const GameScreen = () => {
         <div className="mx-auto w-full max-w-5xl">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md bg-[#112A46] p-3 shadow-md">
             <div className="flex flex-wrap gap-2 text-xs font-bold sm:text-sm">
-              <div className="rounded bg-[#2A4B6E] px-3 py-1">Win: --</div>
-              <div className="rounded bg-[#2A4B6E] px-3 py-1">Stake: {stake || '--'}</div>
+              <div className="rounded bg-[#2A4B6E] px-3 py-1">{t('win')}: --</div>
+              <div className="rounded bg-[#2A4B6E] px-3 py-1">{t('stake')}: {stake || '--'}</div>
               <div className="rounded bg-[#2A4B6E] px-3 py-1">
-                Call: {spectatorBall ? `${spectatorBall.letter}-${spectatorBall.number}` : '--'}
+                {t('call')}: {spectatorBall ? `${spectatorBall.letter}-${spectatorBall.number}` : '--'}
               </div>
-              <div className="rounded bg-[#2A4B6E] px-3 py-1">Players: {playersCount}</div>
+              <div className="rounded bg-[#2A4B6E] px-3 py-1">{t('players')}: {playersCount}</div>
             </div>
             <div className="flex gap-1 text-xs">
               <button onClick={() => i18n.changeLanguage(i18n.language === 'en' ? 'am' : 'en')} className="rounded bg-[#2A4B6E] px-3 py-1 hover:bg-[#3A5B7E]">
@@ -226,7 +237,7 @@ const GameScreen = () => {
               </button>
               <button
                 type="button"
-                aria-label={isMuted ? 'Unmute sound' : 'Mute sound'}
+                aria-label={isMuted ? t('unmuteSound') : t('muteSound')}
                 onClick={() => setIsMuted(toggleMute())}
                 className="ml-2 rounded-full bg-gray-800 p-2 text-white hover:bg-gray-700"
               >
@@ -236,9 +247,9 @@ const GameScreen = () => {
           </div>
 
           <div className="mb-4 rounded-xl border border-blue-500 bg-blue-900/90 p-4 text-center shadow-lg">
-            <p className="mb-1 text-lg font-bold">እባክዎ በትእግስት ይጠብቁ!</p>
-            <p className="text-sm text-blue-200">ጨዋታው እየተካሄደ ነው። የሚቀጥለው ዙር ሲጀምር መጫወት ይችላሉ።</p>
-            <p className="mt-2 text-xs text-gray-400">(Please wait! The game is in progress. You can play in the next round.)</p>
+            <p className="mb-1 text-lg font-bold">{t('pleaseWait')}</p>
+            <p className="text-sm text-blue-200">{t('gameInProgress')}</p>
+            <p className="mt-2 text-xs text-gray-400">{t('gameInProgressContinuation')}</p>
           </div>
 
           <div className="rounded-xl border border-blue-900 bg-[#112A46] p-4 shadow-2xl sm:p-6">
@@ -253,7 +264,7 @@ const GameScreen = () => {
                   <span className="text-4xl text-white">-</span>
                 </div>
               )}
-              <p className="mt-2 text-sm text-gray-300">Balls called: {spectatorNumbers.length}/75</p>
+              <p className="mt-2 text-sm text-gray-300">{t('ballsCalled', { count: spectatorNumbers.length })}</p>
             </div>
 
             <div className="mb-4 flex min-h-10 justify-center gap-2">
@@ -292,9 +303,12 @@ const GameScreen = () => {
         {gameResult && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
             <div className="w-full max-w-sm rounded-2xl border-4 border-red-500 bg-[#112A46] p-8 text-center">
-              <h2 className="mb-4 text-4xl font-bold text-red-400">{gameResult.title}</h2>
-              <p className="text-xl text-white">{gameResult.message}</p>
-              <p className="mt-4 text-sm text-blue-200">Returning to card selection when the next round is ready...</p>
+              <h2 className="mb-4 text-4xl font-bold text-red-400">{t(gameResult.titleKey)}</h2>
+              <p className="text-xl text-white">{t(gameResult.messageKey, {
+                ...gameResult.messageValues,
+                name: gameResult.messageValues?.name || t('player'),
+              })}</p>
+              <p className="mt-4 text-sm text-blue-200">{t('returningToCardSelection')}</p>
             </div>
           </div>
         )}
@@ -306,10 +320,10 @@ const GameScreen = () => {
     <div className="min-h-screen bg-[#1e3a5f] text-white p-2 font-sans flex flex-col">
       <div className="relative z-[60] flex flex-wrap items-center justify-between gap-1 mb-4 bg-[#112A46] p-2 rounded-md shadow-md">
         <div className="flex gap-2 text-xs font-bold">
-          <div className="bg-[#2A4B6E] px-3 py-1 rounded">Win: {gameStarted ? '0' : '--'}</div>
-          <div className="bg-[#2A4B6E] px-3 py-1 rounded">Stake: {stake || '--'}</div>
-          <div className="bg-[#2A4B6E] px-3 py-1 rounded">Call: {gameStarted ? calledNumbers.length : '--'}</div>
-          <div className="bg-[#2A4B6E] px-3 py-1 rounded">Players: {playersCount}</div>
+          <div className="bg-[#2A4B6E] px-3 py-1 rounded">{t('win')}: {gameStarted ? '0' : '--'}</div>
+          <div className="bg-[#2A4B6E] px-3 py-1 rounded">{t('stake')}: {stake || '--'}</div>
+          <div className="bg-[#2A4B6E] px-3 py-1 rounded">{t('call')}: {gameStarted ? calledNumbers.length : '--'}</div>
+          <div className="bg-[#2A4B6E] px-3 py-1 rounded">{t('players')}: {playersCount}</div>
         </div>
         <div className="flex gap-1 text-xs">
           <button onClick={() => i18n.changeLanguage(i18n.language === 'en' ? 'am' : 'en')} className="bg-[#2A4B6E] px-3 py-1 rounded hover:bg-[#3A5B7E]">
@@ -317,7 +331,7 @@ const GameScreen = () => {
           </button>
           <button
             type="button"
-            aria-label={isMuted ? 'Unmute sound' : 'Mute sound'}
+            aria-label={isMuted ? t('unmuteSound') : t('muteSound')}
             onClick={() => setIsMuted(toggleMute())}
             className="ml-2 rounded-full bg-gray-800 p-2 text-white hover:bg-gray-700"
           >
@@ -329,22 +343,22 @@ const GameScreen = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
           <div className="w-full max-w-lg rounded-3xl bg-gradient-to-br from-indigo-900 to-blue-900 px-6 py-10 text-center shadow-2xl ring-1 ring-white/20 animate-pulse sm:px-12 sm:py-14">
             <p className="mb-4 text-xl font-bold text-blue-100 sm:text-2xl">
-              ጨዋታው የሚጀምረው በ:
+              {t('countdown')}
             </p>
             <div className="text-6xl font-black text-white drop-shadow-lg sm:text-8xl">
               {formatTime(countdown)}
             </div>
             <p className="mt-5 text-lg font-semibold text-blue-100 sm:text-xl">
-              ይዘጋጁ! መልካም እድል!
+              {t('getReady')}
             </p>
           </div>
         </div>
       )}
       {!gameStarted && countdown === null ? (
         <div className="flex-1 flex justify-center items-center text-gray-400">
-          ለመጀመር ትጫዋቾችን በመጠበቅ ላይ ..
+          {t('waitingPlayersLine1')}
           <br />
-          Waiting for players to start ..
+          {t('waitingPlayersLine2')}
         </div>
       ) : (
         <>
@@ -358,7 +372,7 @@ const GameScreen = () => {
                 <span className="text-5xl font-black text-white">{currentBall.letter}-{currentBall.number}</span>
               </div>
             ) : (
-              <span className="text-gray-400 font-bold">Waiting for game...</span>
+              <span className="text-gray-400 font-bold">{t('waitingGame')}</span>
             )}
           </div>
           <div className="flex gap-2 justify-center h-10">
@@ -390,7 +404,7 @@ const GameScreen = () => {
           <div className="w-full flex flex-col items-center gap-4">
             {cardsData && cardsData.length > 0 ? (
               <div className="bg-[#4a5568] p-3 rounded-xl shadow-lg">
-                <div className="text-center font-bold text-lg mb-2 text-gray-200">Card No. {cardsData[0]?.id || '?'}</div>
+                <div className="text-center font-bold text-lg mb-2 text-gray-200">{t('cardNo', { number: cardsData[0]?.id || '?' })}</div>
                 <div className="grid grid-cols-5 gap-1 mb-2">
                   {['B', 'I', 'N', 'G', 'O'].map((letter) => (
                     <div key={letter} className={`text-center text-xl py-1 rounded text-white ibm-plex-mono-bold-italic ${getBallColor(letter).split(' ')[0]}`}>{letter}</div>
@@ -409,9 +423,9 @@ const GameScreen = () => {
                 </div>
               </div>
             ) : (
-              <div className="text-white text-center mt-10">Loading Card...</div>
+              <div className="text-white text-center mt-10">{t('loadingCard')}</div>
             )}
-            <button onClick={handleBingoClick} className="w-full max-w-sm bg-yellow-500 text-[#112A46] font-extrabold text-2xl py-4 rounded-xl shadow-lg">BINGO</button>
+            <button onClick={handleBingoClick} className="w-full max-w-sm bg-yellow-500 text-[#112A46] font-extrabold text-2xl py-4 rounded-xl shadow-lg">{t('bingo')}</button>
           </div>
         </div>
       </div>
@@ -428,10 +442,13 @@ const GameScreen = () => {
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className={`bg-[#112A46] rounded-2xl p-8 max-w-sm w-full text-center border-4 ${gameResult.type === 'win' ? 'border-yellow-500' : 'border-red-500'}`}>
             <h2 className={`text-4xl font-bold mb-4 ${gameResult.type === 'win' ? 'text-yellow-400' : 'text-red-400'}`}>
-              {gameResult.title}
+              {t(gameResult.titleKey)}
             </h2>
-            <p className="text-white text-xl mb-8">{gameResult.message}</p>
-            <button onClick={() => { setGameResult(null); navigate('/'); }} className="w-full bg-white text-[#112A46] font-bold py-3 rounded-xl">Back to Lobby</button>
+            <p className="text-white text-xl mb-8">{t(gameResult.messageKey, {
+              ...gameResult.messageValues,
+              name: gameResult.messageValues?.name || t('player'),
+            })}</p>
+            <button onClick={() => { setGameResult(null); navigate('/'); }} className="w-full bg-white text-[#112A46] font-bold py-3 rounded-xl">{t('backToLobby')}</button>
           </div>
         </div>
       )}
