@@ -7,8 +7,7 @@ class PaymentVerificationError extends Error {}
 function parseTelebirrSMS(smsText) {
   if (!smsText) return null
 
-  const idMatch = smsText.match(/Your transaction number is\s+([A-Z0-9]+)/i)
-  const transactionId = idMatch ? idMatch[1] : null
+  const { reference: transactionId, url: receiptUrl } = extractTelebirrReceipt(smsText)
 
   const amountMatch = smsText.match(/(?:paid|transferred)\s+ETB\s+([0-9.]+)/i)
   const amount = amountMatch ? parseFloat(amountMatch[1]) : null
@@ -26,11 +25,29 @@ function parseTelebirrSMS(smsText) {
 
   return {
     transactionId,
+    receiptUrl,
     amount,
     payerName,
     receiverName,
     receiverNumber,
     rawText: smsText,
+  }
+}
+
+function extractTelebirrReceipt(smsText) {
+  const transactionMatch = smsText.match(
+    /(?:transaction\s+number(?:\s+is)?|reference)[\s:#]*([A-Z0-9]{6,20})(?![A-Z0-9])/i
+  )
+  const receiptMatch = smsText.match(
+    /https:\/\/transactioninfo\.ethiotelecom\.et\/receipt\/([A-Z0-9]{10})(?![A-Z0-9])/i
+  )
+  const reference = (transactionMatch?.[1] || receiptMatch?.[1] || '').toUpperCase() || null
+
+  return {
+    reference,
+    url: receiptMatch
+      ? `https://transactioninfo.ethiotelecom.et/receipt/${receiptMatch[1].toUpperCase()}`
+      : null,
   }
 }
 
@@ -121,7 +138,7 @@ function parseTelebirrPaymentDate(value) {
   return utcTime - 3 * 60 * 60 * 1000
 }
 
-async function verifyTelebirrReference({ reference, expectedAmount, userId }) {
+async function verifyTelebirrReference({ reference, expectedAmount, userId, receiptUrl }) {
   if (typeof reference !== 'string' || !/^[A-Z0-9]{6,20}$/.test(reference)) {
     throw new PaymentVerificationError('Enter a valid Telebirr transaction reference.')
   }
@@ -142,8 +159,30 @@ async function verifyTelebirrReference({ reference, expectedAmount, userId }) {
     throw new PaymentVerificationError('Telebirr receiver account is not configured.')
   }
 
+  let url
+  if (receiptUrl) {
+    try {
+      const parsedUrl = new URL(receiptUrl)
+      const expectedPath = `/receipt/${reference}`
+      if (
+        parsedUrl.protocol !== 'https:' ||
+        parsedUrl.hostname !== 'transactioninfo.ethiotelecom.et' ||
+        parsedUrl.pathname.toUpperCase() !== expectedPath.toUpperCase() ||
+        parsedUrl.username ||
+        parsedUrl.password
+      ) {
+        throw new Error('Invalid Telebirr receipt URL')
+      }
+      url = `https://transactioninfo.ethiotelecom.et${expectedPath}`
+    } catch {
+      throw new PaymentVerificationError('Telebirr receipt link does not match the transaction reference.')
+    }
+  }
+
   let response
   let data
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 35_000)
   try {
     response = await fetch(LINKS_ET_VERIFY_URL, {
       method: 'POST',
@@ -152,15 +191,29 @@ async function verifyTelebirrReference({ reference, expectedAmount, userId }) {
         'x-api-key': apiKey,
         'Idempotency-Key': `verify-${reference}-${userId}`,
       },
-      body: JSON.stringify({ reference }),
+      body: JSON.stringify(url ? { url, waitMs: 30_000 } : { reference, waitMs: 30_000 }),
+      signal: controller.signal,
     })
+    console.log('[DEBUG] links.et response status:', response.status)
     if (!response.ok) {
       throw new PaymentVerificationError('Receipt verification service rejected the request.')
     }
     data = await response.json()
+    console.log('[DEBUG] links.et response summary:', JSON.stringify({
+      ok: data?.ok === true,
+      fields: data && typeof data === 'object' ? Object.keys(data) : [],
+      receiptFields: data?.receipt && typeof data.receipt === 'object'
+        ? Object.keys(data.receipt)
+        : [],
+    }))
   } catch (err) {
     if (err instanceof PaymentVerificationError) throw err
+    if (err.name === 'AbortError' || err.name === 'TimeoutError') {
+      throw new PaymentVerificationError('Receipt verification timed out. Please try again.')
+    }
     throw new PaymentVerificationError('Unable to verify this receipt right now.')
+  } finally {
+    clearTimeout(timeoutId)
   }
 
   if (data?.ok !== true || !data.receipt || typeof data.receipt !== 'object') {
@@ -195,11 +248,12 @@ async function verifyTelebirrReference({ reference, expectedAmount, userId }) {
   return { reference, amount, rawResponse: data }
 }
 
-async function creditVerifiedDeposit({ userId, reference, amount }) {
+async function creditVerifiedDeposit({ userId, reference, amount, receiptUrl }) {
   const verified = await verifyTelebirrReference({
     reference,
     expectedAmount: amount,
     userId,
+    receiptUrl,
   })
 
   let newBalance
@@ -278,4 +332,5 @@ module.exports = {
   verifyTelebirrReceipt,
   processDeposit,
   parseTelebirrSMS,
+  extractTelebirrReceipt,
 }

@@ -1,6 +1,11 @@
 const { Telegraf, Markup } = require('telegraf')
 const db = require('../db')
-const { parseTelebirrSMS, creditVerifiedDeposit, PaymentVerificationError } = require('../services/paymentService')
+const {
+  parseTelebirrSMS,
+  extractTelebirrReceipt,
+  creditVerifiedDeposit,
+  PaymentVerificationError,
+} = require('../services/paymentService')
 
 const API_BASE = process.env.API_URL || 'http://localhost:3001'
 const userStates = {}
@@ -182,6 +187,11 @@ bot.on('text', async (ctx) => {
 
     if (state === 'WAITING_FOR_RECEIPT') {
       const smsText = ctx.message.text
+      const extractedReceipt = extractTelebirrReceipt(smsText)
+      if (!extractedReceipt.reference) {
+        return ctx.reply('Could not find a valid transaction number in that SMS.').catch(() => {})
+      }
+
       const parsedFromSMS = parseTelebirrSMS(smsText)
       if (!parsedFromSMS) {
         return ctx.reply('❌ Invalid receipt format. Please copy the entire SMS you received from Telebirr and paste it here.').catch(() => {})
@@ -194,10 +204,12 @@ bot.on('text', async (ctx) => {
 
       let deposit
       try {
+        console.log('[DEBUG] Extracted Reference:', extractedReceipt.reference)
         deposit = await creditVerifiedDeposit({
           userId: user.id,
-          reference: parsedFromSMS.transactionId,
+          reference: extractedReceipt.reference,
           amount: parsedFromSMS.amount,
+          receiptUrl: extractedReceipt.url,
         })
       } catch (err) {
         if (err.code === '23505') {
