@@ -1,6 +1,6 @@
 const { Telegraf, Markup } = require('telegraf')
 const db = require('../db')
-const { parseTelebirrSMS, verifyTelebirrReceipt } = require('../services/paymentService')
+const { parseTelebirrSMS, creditVerifiedDeposit, PaymentVerificationError } = require('../services/paymentService')
 
 const API_BASE = process.env.API_URL || 'http://localhost:3001'
 const userStates = {}
@@ -187,39 +187,29 @@ bot.on('text', async (ctx) => {
         return ctx.reply('❌ Invalid receipt format. Please copy the entire SMS you received from Telebirr and paste it here.').catch(() => {})
       }
 
-      const official = await verifyTelebirrReceipt(parsedFromSMS.transactionId)
-      if (!official.success) {
-        return ctx.reply(`❌ Verification failed: ${official.error}`).catch(() => {})
-      }
-
-      if (Math.abs(official.amount - parsedFromSMS.amount) > 0.01) {
-        return ctx.reply(`❌ Amount mismatch. Your SMS says ${parsedFromSMS.amount} ETB but Telebirr shows ${official.amount} ETB.`).catch(() => {})
-      }
-
-      const existing = await db('payments').where({ transaction_reference: parsedFromSMS.transactionId }).first()
-      if (existing) {
-        return ctx.reply('❌ This Telebirr receipt has already been used.').catch(() => {})
-      }
-
       const user = await db('users').where({ telegram_id: ctx.from.id }).first()
       if (!user) {
         return ctx.reply('❌ User not found. Please open the Mini App first to register.').catch(() => {})
       }
 
-      // *** CRITICAL FIX: No reference_id in financial_ledger ***
-      await db.transaction(async (trx) => {
-        await trx('payments').insert({
-          user_id: user.id,
-          amount: official.amount,
-          transaction_reference: parsedFromSMS.transactionId,
-          provider: 'telebirr',
-          status: 'pending',
-          type: 'deposit',
-          provider_response: JSON.stringify({ payerName: official.payerName, receiverName: official.receiverName })
+      let deposit
+      try {
+        deposit = await creditVerifiedDeposit({
+          userId: user.id,
+          reference: parsedFromSMS.transactionId,
+          amount: parsedFromSMS.amount,
         })
-      })
+      } catch (err) {
+        if (err.code === '23505') {
+          return ctx.reply('❌ This Telebirr receipt has already been used.').catch(() => {})
+        }
+        const message = err instanceof PaymentVerificationError
+          ? err.message
+          : 'Unable to process this deposit.'
+        return ctx.reply(`❌ Verification failed: ${message}`).catch(() => {})
+      }
 
-      ctx.reply(`✅ Receipt for ETB ${official.amount.toFixed(2)} verified and submitted for admin approval. Your wallet will be credited after approval.`).catch(() => {})
+      ctx.reply(`✅ Receipt for ETB ${deposit.amount.toFixed(2)} verified and submitted for admin approval. Your wallet will be credited after approval.`).catch(() => {})
       delete userStates[ctx.from.id]
       return
     }

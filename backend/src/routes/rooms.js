@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const db = require('../db')
 const { generateSingleCard, generateCardFromNumber } = require('../utils/cardGenerator')
+const { userAuth } = require('../../middleware/auth')
 const MAX_ROOM_PLAYERS = 10
 
 // GET /api/rooms (list waiting rooms)
@@ -37,21 +38,17 @@ router.get('/active-cards', async (req, res) => {
   }
 })
 
-router.post('/join', async (req, res) => {
+router.post('/join', userAuth, async (req, res) => {
   try {
     // 1. DEFINE VARIABLES
     const stake = Number(req.body.stake || req.body.level);
-    const userId = req.tgUser?.id || req.body.userId;
+    const userId = req.user.id;
     const cardNumber = Number(req.body.card_number);
 
     console.log('[join] Request received for stake:', stake, 'userId:', userId, 'cardNumber:', cardNumber);
 
     // 2. FIND USER
-    let user = null
-    if (userId) {
-      user = await db('users').where({ id: userId }).first()
-      if (!user) user = await db('users').where({ telegram_id: userId }).first()
-    }
+    const user = await db('users').where({ id: userId }).first()
     console.log('[join] User found:', user ? user.id : 'NOT FOUND')
     if (!user) return res.status(404).json({ error: 'User not found' })
 
@@ -187,14 +184,12 @@ router.post('/join', async (req, res) => {
 })
 
 // GET /api/rooms/:roomId/cards
-router.get('/:roomId/cards', async (req, res) => {
+router.get('/:roomId/cards', userAuth, async (req, res) => {
   try {
     const { roomId } = req.params
-    const { userId } = req.query
-    if (!userId) return res.status(400).json({ error: 'userId is required' })
+    const userId = req.user.id
 
-    let user = await db('users').where({ id: userId }).first()
-    if (!user) user = await db('users').where({ telegram_id: userId }).first()
+    const user = await db('users').where({ id: userId }).first()
     if (!user) return res.status(404).json({ error: 'User not found' })
 
     const room = await db('game_rooms').where({ id: roomId }).first()
@@ -223,13 +218,12 @@ router.get('/:roomId/cards', async (req, res) => {
 })
 
 // POST /api/rooms/:id/cards/:cardId
-router.post('/:id/cards/:cardId', async (req, res) => {
+router.post('/:id/cards/:cardId', userAuth, async (req, res) => {
   try {
     const { id: roomId, cardId } = req.params
-    const { userId } = req.body
+    const userId = req.user.id
 
-    let user = await db('users').where({ id: userId }).first()
-    if (!user) user = await db('users').where({ telegram_id: userId }).first()
+    const user = await db('users').where({ id: userId }).first()
     if (!user) return res.status(404).json({ error: 'User not found' })
 
     const room = await db('game_rooms').where({ id: roomId }).first()
@@ -258,16 +252,16 @@ router.post('/:id/cards/:cardId', async (req, res) => {
 })
 
 // POST /api/rooms/:id/select-cards
-router.post('/:id/select-cards', async (req, res) => {
+router.post('/:id/select-cards', userAuth, async (req, res) => {
   try {
     const roomId = req.params.id
-    const { userId, cardIds } = req.body || {}
-    if (!userId || !Array.isArray(cardIds)) {
-      return res.status(400).json({ error: 'userId and cardIds are required' })
+    const { cardIds } = req.body || {}
+    if (!Array.isArray(cardIds)) {
+      return res.status(400).json({ error: 'cardIds are required' })
     }
+    const userId = req.user.id
 
-    let user = await db('users').where({ id: userId }).first()
-    if (!user) user = await db('users').where({ telegram_id: userId }).first()
+    const user = await db('users').where({ id: userId }).first()
     if (!user) return res.status(404).json({ error: 'User not found' })
 
     const room = await db('game_rooms').where({ id: roomId }).first()
@@ -300,22 +294,19 @@ router.post('/:id/select-cards', async (req, res) => {
 })
 
 // GET /api/rooms/:id/my-cards
-router.get('/:id/my-cards', async (req, res) => {
+router.get('/:id/my-cards', userAuth, async (req, res) => {
   try {
     const roomId = req.params.id
-    const { userId } = req.query
+    const userId = req.user.id
 
-    if (!roomId || !userId) {
-      return res.status(400).json({ error: 'roomId and userId are required' })
+    if (!roomId) {
+      return res.status(400).json({ error: 'roomId is required' })
     }
 
-    let user = await db('users').where({ id: userId }).first()
-    if (!user) {
-      user = await db('users').where({ telegram_id: userId }).first()
-    }
+    const user = await db('users').where({ id: userId }).first()
 
     if (!user) {
-      console.log(`[my-cards] User not found for ID/Telegram: ${userId}`)
+      console.log(`[my-cards] User not found for ID: ${userId}`)
       return res.status(404).json({ error: 'User not found' })
     }
 

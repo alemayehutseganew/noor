@@ -1,13 +1,12 @@
 const express = require('express')
 const router = express.Router()
 const db = require('../db')
+const { userAuth } = require('../../middleware/auth')
 
-// GET /api/users/history?userId=...
-router.get('/history', async (req, res) => {
+// GET /api/users/history
+router.get('/history', userAuth, async (req, res) => {
   try {
-    const userId = req.query.userId
-    const user = await db('users').where({ telegram_id: userId }).first()
-      || await db('users').where({ id: userId }).first()
+    const user = await db('users').where({ id: req.user.id }).first()
     if (!user) return res.status(404).json({ error: 'User not found' })
 
     const history = await db('room_participants')

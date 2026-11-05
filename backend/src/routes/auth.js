@@ -4,9 +4,7 @@ const jwt = require('jsonwebtoken')
 const db = require('../db')
 
 const router = express.Router()
-const authMiddleware = require('../../middleware/auth')
-
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret'
+const { userAuth } = require('../../middleware/auth')
 
 function validateInitData(initData, botToken) {
   const params = new URLSearchParams(initData)
@@ -69,7 +67,7 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign(
       { id: user.id, telegram_id: user.telegram_id },
-      JWT_SECRET,
+      process.env.JWT_SECRET,
       { expiresIn: '7d' }
     )
 
@@ -81,7 +79,7 @@ router.post('/login', async (req, res) => {
 })
 
 // GET /api/auth/me
-router.get('/me', authMiddleware, (req, res) => {
+router.get('/me', userAuth, (req, res) => {
   return res.json(req.user)
 })
 

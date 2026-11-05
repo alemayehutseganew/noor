@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken')
 const { bot } = require('../bot/index')
 
 const rooms = {}
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret'
+const JWT_SECRET = process.env.JWT_SECRET
 const roomStatusRank = { WAITING: 0, COUNTDOWN: 1, PLAYING: 2, CLAIMING: 3, ENDED: 4 }
 
 function getBallData(number) {
@@ -309,13 +309,9 @@ function initGameHandler(io) {
       socket.join(`user_${socket.data.userId}`)
     }
 
-    socket.on('join_room', async ({ roomId, userId, stake, spectator }) => {
+    socket.on('join_room', async ({ roomId, stake, spectator }) => {
       try {
-        let user = null
-        if (userId) {
-          user = await db('users').where({ id: userId }).first()
-          if (!user) user = await db('users').where({ telegram_id: userId }).first()
-        }
+        const user = await db('users').where({ id: socket.data.userId }).first()
         if (!user) return socket.emit('error', { message: 'User not found' })
 
         const persistedRoom = await db('game_rooms').where({ id: roomId }).first()
@@ -435,13 +431,13 @@ function initGameHandler(io) {
         socket.emit('error', { message: 'Server error' })
       }
     })
-    socket.on('join_as_spectator', async ({ roomId, userId }) => {
+    socket.on('join_as_spectator', async ({ roomId }) => {
       try {
         const room = rooms[roomId]
         if (!room) return
 
         socket.join(roomId)
-        console.log(`[Spectator] User ${userId} is watching room ${roomId}`)
+        console.log(`[Spectator] User ${socket.data.userId} is watching room ${roomId}`)
         await emitCurrentRoomState(socket, roomId, room)
 
         socket.emit('spectator_sync', {
@@ -454,17 +450,13 @@ function initGameHandler(io) {
         console.error('Spectator join error:', err)
       }
     })
-    socket.on('leave_room', async ({ roomId, userId }) => {
+    socket.on('leave_room', async ({ roomId }) => {
   try {
     const room = rooms[roomId]
     
     // Only refund if the game hasn't started
     if (room && (room.status === 'WAITING' || room.status === 'COUNTDOWN')) {
-      let user = null
-      if (userId) {
-        user = await db('users').where({ id: userId }).first()
-        if (!user) user = await db('users').where({ telegram_id: userId }).first()
-      }
+      const user = await db('users').where({ id: socket.data.userId }).first()
 
       if (user) {
         const participant = await db('room_participants').where({ room_id: roomId, user_id: user.id }).first()
@@ -491,9 +483,10 @@ function initGameHandler(io) {
     console.error('[Game] leave_room error:', err)
   }
 })
-    socket.on('claim_bingo', async ({ roomId, userId, cardId }) => {
+    socket.on('claim_bingo', async ({ roomId, cardId }) => {
   const room = rooms[roomId];
   if (!room) return;
+  const userId = socket.data.userId;
 
   console.log(`[Claim] Received claim from user ${userId} for card ${cardId}. Status: ${room.status}`);
 
@@ -511,8 +504,7 @@ function initGameHandler(io) {
 
   try {
     // 3. Fetch the user's card from the database
-    let user = await db('users').where({ id: userId }).first();
-    if (!user) user = await db('users').where({ telegram_id: userId }).first();
+    const user = await db('users').where({ id: userId }).first();
     const connectedPlayer = room.players[socket.id]
     if (!user || !connectedPlayer || String(connectedPlayer.userId) !== String(user.id)) {
       return socket.emit('bingo_result', { success: false, message: 'Only players in this game can claim Bingo.' });
@@ -626,16 +618,9 @@ function initGameHandler(io) {
   }
 });
 
-    socket.on('get_my_cards', async ({ roomId, userId } = {}) => {
+    socket.on('get_my_cards', async ({ roomId } = {}) => {
       try {
-        let uid = userId
-        if (uid) {
-          const u = await db('users').where({ id: uid }).first()
-          if (!u) {
-            const u2 = await db('users').where({ telegram_id: uid }).first()
-            if (u2) uid = u2.id
-          }
-        }
+        const uid = socket.data.userId
         const persistedRoom = await db('game_rooms').where({ id: roomId }).first()
         const isRejoiningActiveGame =
           persistedRoom &&
@@ -672,8 +657,7 @@ function initGameHandler(io) {
       
       // If this socket is in the room's player list
       if (room.players && room.players[socket.id]) {
-        const playerData = room.players[socket.id]
-        const userId = playerData.userId
+        const userId = socket.data.userId
         
         // Only refund if the game hasn't started
         if (room.status === 'WAITING' || room.status === 'COUNTDOWN') {
@@ -710,15 +694,18 @@ function setupSocket(server) {
   })
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token
-    if (!token) return next()
-
     try {
+      if (!token) throw new Error('Missing socket token')
       const payload = jwt.verify(token, JWT_SECRET)
-      if (payload.id) socket.data.userId = payload.id
+      if (!payload.id) throw new Error('Socket token has no user ID')
+      socket.data.userId = payload.id
+      socket.data.user = payload
+      return next()
     } catch (err) {
-      console.warn('[Socket] Invalid auth token; connecting without wallet updates:', err.message)
+      console.warn('[Socket] Rejecting connection with invalid auth token:', err.message)
+      socket.disconnect(true)
+      return next(new Error('Unauthorized'))
     }
-    next()
   })
   initGameHandler(io)
   return io

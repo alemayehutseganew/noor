@@ -1,16 +1,13 @@
 const express = require('express')
 const router = express.Router()
 const db = require('../db')
-const ps = require('../services/paymentService')
+const { creditVerifiedDeposit, PaymentVerificationError } = require('../services/paymentService')
+const { userAuth } = require('../../middleware/auth')
 
-// GET /api/wallet/balance?userId=...
-router.get('/balance', async (req, res) => {
+// GET /api/wallet/balance
+router.get('/balance', userAuth, async (req, res) => {
   try {
-    const { userId } = req.query
-    let user = await db('users').where({ id: userId }).first()
-    if (!user) {
-      user = await db('users').where({ telegram_id: userId }).first()
-    }
+    const user = await db('users').where({ id: req.user.id }).first()
     if (!user) return res.status(404).json({ error: 'User not found' })
     res.json({ balance: user.wallet_balance || 0 })
   } catch (err) {
@@ -19,29 +16,37 @@ router.get('/balance', async (req, res) => {
 })
 
 // POST /api/wallet/deposit (manual Telebirr receipt verification)
-router.post('/deposit', async (req, res) => {
-  try {
-    const { userId, amount, reference } = req.body
-    if (!userId || !amount || !reference) return res.status(400).json({ error: 'Missing fields' })
-    const user = await db('users').where({ id: userId }).orWhere({ telegram_id: userId }).first()
-    if (!user) return res.status(404).json({ error: 'User not found' })
+router.post('/deposit', userAuth, async (req, res) => {
+  const { amount, reference } = req.body || {}
+  if (!amount || !reference) return res.status(400).json({ error: 'Missing fields' })
 
-    const result = await ps.processDeposit(user.id, amount, reference)
-    if (result.error) return res.status(400).json({ error: result.error })
-    res.json({ success: true, newBalance: result.newBalance })
+  try {
+    const result = await creditVerifiedDeposit({
+      userId: req.user.id,
+      reference,
+      amount,
+    })
+    return res.json({ success: true, newBalance: result.newBalance })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'This transaction has already been used' })
+    }
+
+    const message = err instanceof PaymentVerificationError
+      ? err.message
+      : 'Unable to process this deposit.'
+    return res.status(400).json({ error: message })
   }
 })
 
 // POST /api/wallet/withdraw
-router.post('/withdraw', async (req, res) => {
+router.post('/withdraw', userAuth, async (req, res) => {
   try {
-    const { userId, amount, provider, phoneNumber } = req.body
-    if (!userId || !amount || !provider) return res.status(400).json({ error: 'Missing fields' })
+    const { amount, provider, phoneNumber } = req.body
+    if (!amount || !provider) return res.status(400).json({ error: 'Missing fields' })
     if (Number(amount) < 100) return res.status(400).json({ error: 'Minimum withdrawal is 100 ETB' })
 
-    const user = await db('users').where({ id: userId }).orWhere({ telegram_id: userId }).first()
+    const user = await db('users').where({ id: req.user.id }).first()
     if (!user) return res.status(404).json({ error: 'User not found' })
     if (Number(user.wallet_balance) < Number(amount)) return res.status(400).json({ error: 'Insufficient balance' })
 

@@ -10,6 +10,28 @@ const requiredEnvVars = [
   'FRONTEND_URL'
 ];
 
+const invalidJwtSecrets = new Set([
+  'your-secret-key',
+  'default_secret',
+  'dev-secret',
+  'admin-secret',
+]);
+
+if (!process.env.JWT_SECRET || invalidJwtSecrets.has(process.env.JWT_SECRET)) {
+  console.error('❌ CRITICAL ERROR: JWT_SECRET is missing or uses a known insecure fallback.');
+  process.exit(1);
+}
+
+if (!process.env.LINKS_ET_API_KEY) {
+  console.error('❌ CRITICAL ERROR: LINKS_ET_API_KEY is required for Telebirr receipt verification.');
+  process.exit(1);
+}
+
+if (!process.env.TELEBIRR_RECEIVER_NUMBER) {
+  console.error('❌ CRITICAL ERROR: TELEBIRR_RECEIVER_NUMBER is required for Telebirr receipt verification.');
+  process.exit(1);
+}
+
 const missingVars = requiredEnvVars.filter(v => !process.env[v]);
 
 if (missingVars.length > 0) {
