@@ -67,6 +67,7 @@ const configuredOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'https://noor-one-beta.vercel.app',
+  'https://noor.ezonic.dev',
   process.env.FRONTEND_URL
 ].filter(Boolean)
 
