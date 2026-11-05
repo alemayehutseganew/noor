@@ -1,8 +1,119 @@
 const db = require('../db')
 
 const LINKS_ET_VERIFY_URL = 'https://links.et/api/verify'
+const LINKS_ET_REQUEST_TIMEOUT_MS = 35_000
+const LINKS_ET_POLL_INTERVAL_MS = 2_000
+const LINKS_ET_POLL_ATTEMPTS = 5
+const LINKS_ET_RETRY_ATTEMPTS = 3
+const LINKS_ET_RETRY_DELAY_MS = 3_000
 
 class PaymentVerificationError extends Error {}
+class RetryableVerificationError extends PaymentVerificationError {}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function fetchLinksEt(url, options) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), LINKS_ET_REQUEST_TIMEOUT_MS)
+  try {
+    return await fetch(url, { ...options, signal: controller.signal })
+  } catch (err) {
+    throw new RetryableVerificationError(err.message)
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
+async function readLinksEtResponse(response) {
+  console.log('[TELEBIRR VERIFY] HTTP status:', response.status)
+
+  let data
+  try {
+    data = await response.json()
+  } catch (err) {
+    if (response.status !== 200 && response.status !== 202) {
+      throw new PaymentVerificationError(
+        `links.et verification failed with HTTP ${response.status}.`
+      )
+    }
+    throw new RetryableVerificationError(`Invalid response from links.et: ${err.message}`)
+  }
+
+  if (response.status !== 202 && data?.ok === false) {
+    throw new PaymentVerificationError(
+      typeof data.error === 'string' && data.error
+        ? data.error
+        : 'Receipt was not found or could not be verified.'
+    )
+  }
+
+  return data
+}
+
+async function requestLinksEtVerification({ reference, url, apiKey, userId }) {
+  const response = await fetchLinksEt(LINKS_ET_VERIFY_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'Idempotency-Key': `verify-${reference}-${userId}`,
+    },
+    body: JSON.stringify(url ? { url, waitMs: 30_000 } : { reference, waitMs: 30_000 }),
+  })
+  let data = await readLinksEtResponse(response)
+
+  if (response.status === 202) {
+    if (!data?.requestId && !data?.pollUrl) {
+      throw new PaymentVerificationError(
+        data?.error || 'Verification is still processing, but links.et did not provide a polling URL.'
+      )
+    }
+
+    let pollUrl
+    try {
+      pollUrl = new URL(
+        data.pollUrl || `${LINKS_ET_VERIFY_URL}/${encodeURIComponent(data.requestId)}`,
+        LINKS_ET_VERIFY_URL
+      )
+      if (pollUrl.protocol !== 'https:' || pollUrl.hostname !== 'links.et') {
+        throw new Error('Invalid links.et polling URL')
+      }
+    } catch {
+      throw new PaymentVerificationError('links.et returned an invalid polling URL.')
+    }
+
+    for (let attempt = 0; attempt < LINKS_ET_POLL_ATTEMPTS; attempt += 1) {
+      await delay(LINKS_ET_POLL_INTERVAL_MS)
+      const pollResponse = await fetchLinksEt(pollUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'x-api-key': apiKey,
+        },
+      })
+      data = await readLinksEtResponse(pollResponse)
+
+      if (pollResponse.status === 200) return data
+      if (pollResponse.status !== 202) {
+        throw new PaymentVerificationError(
+          data?.error || `links.et verification failed with HTTP ${pollResponse.status}.`
+        )
+      }
+    }
+
+    throw new RetryableVerificationError('links.et verification remained pending after polling.')
+  }
+
+  if (response.status !== 200) {
+    throw new PaymentVerificationError(
+      data?.error || `links.et verification failed with HTTP ${response.status}.`
+    )
+  }
+
+  return data
+}
 
 function parseTelebirrSMS(smsText) {
   if (!smsText) return null
@@ -179,41 +290,21 @@ async function verifyTelebirrReference({ reference, expectedAmount, userId, rece
     }
   }
 
-  let response
   let data
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 35_000)
-  try {
-    response = await fetch(LINKS_ET_VERIFY_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'Idempotency-Key': `verify-${reference}-${userId}`,
-      },
-      body: JSON.stringify(url ? { url, waitMs: 30_000 } : { reference, waitMs: 30_000 }),
-      signal: controller.signal,
-    })
-    console.log('[DEBUG] links.et response status:', response.status)
-    if (!response.ok) {
-      throw new PaymentVerificationError('Receipt verification service rejected the request.')
+  for (let attempt = 1; attempt <= LINKS_ET_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      data = await requestLinksEtVerification({ reference, url, apiKey, userId })
+      break
+    } catch (err) {
+      console.error('[TELEBIRR VERIFY] Attempt failed:', err.message)
+      if (!(err instanceof RetryableVerificationError)) throw err
+      if (attempt === LINKS_ET_RETRY_ATTEMPTS) {
+        throw new PaymentVerificationError(
+          "Telebirr's server is currently slow. Please try again in a few minutes."
+        )
+      }
+      await delay(LINKS_ET_RETRY_DELAY_MS)
     }
-    data = await response.json()
-    console.log('[DEBUG] links.et response summary:', JSON.stringify({
-      ok: data?.ok === true,
-      fields: data && typeof data === 'object' ? Object.keys(data) : [],
-      receiptFields: data?.receipt && typeof data.receipt === 'object'
-        ? Object.keys(data.receipt)
-        : [],
-    }))
-  } catch (err) {
-    if (err instanceof PaymentVerificationError) throw err
-    if (err.name === 'AbortError' || err.name === 'TimeoutError') {
-      throw new PaymentVerificationError('Receipt verification timed out. Please try again.')
-    }
-    throw new PaymentVerificationError('Unable to verify this receipt right now.')
-  } finally {
-    clearTimeout(timeoutId)
   }
 
   if (data?.ok !== true || !data.receipt || typeof data.receipt !== 'object') {
