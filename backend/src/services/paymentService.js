@@ -34,14 +34,51 @@ function parseTelebirrSMS(smsText) {
   }
 }
 
-function normalizeAccountNumber(value) {
-  let accountNumber = String(value || '').trim().replace(/\D/g, '')
+function normalizeAccountPrefix(accountNumber) {
   if (accountNumber.startsWith('251')) {
-    accountNumber = accountNumber.slice(3)
-  } else if (accountNumber.startsWith('0')) {
-    accountNumber = accountNumber.slice(1)
+    return accountNumber.slice(3)
+  }
+  if (accountNumber.startsWith('0')) {
+    return accountNumber.slice(1)
   }
   return accountNumber
+}
+
+function isAccountMatch(maskedReceiptAccount, expectedTelebirrNumber) {
+  if (!maskedReceiptAccount || !expectedTelebirrNumber) return false
+
+  const cleanMasked = normalizeAccountPrefix(
+    String(maskedReceiptAccount).replace(/[^0-9*]/g, '')
+  )
+  const cleanExpected = normalizeAccountPrefix(
+    String(expectedTelebirrNumber).replace(/[^0-9]/g, '')
+  )
+  if (!cleanExpected) return false
+
+  if (!cleanMasked.includes('*')) {
+    return cleanMasked === cleanExpected
+  }
+
+  const parts = cleanMasked.split('*').filter(Boolean)
+  if (parts.length === 0) return false
+
+  const firstPart = parts[0]
+  const lastPart = parts[parts.length - 1]
+  if (!cleanExpected.startsWith(firstPart) || !cleanExpected.endsWith(lastPart)) {
+    return false
+  }
+
+  if (parts.length > 2) {
+    let searchIndex = firstPart.length
+    const suffixStart = cleanExpected.length - lastPart.length
+    for (let i = 1; i < parts.length - 1; i++) {
+      const index = cleanExpected.indexOf(parts[i], searchIndex)
+      if (index === -1 || index + parts[i].length > suffixStart) return false
+      searchIndex = index + parts[i].length
+    }
+  }
+
+  return true
 }
 
 function parseSettledAmount(value) {
@@ -135,9 +172,7 @@ async function verifyTelebirrReference({ reference, expectedAmount, userId }) {
     throw new PaymentVerificationError('Telebirr transaction is not completed.')
   }
 
-  const expectedAccount = normalizeAccountNumber(process.env.TELEBIRR_RECEIVER_NUMBER)
-  const creditedAccount = normalizeAccountNumber(receipt.creditedPartyAccountNo)
-  if (!expectedAccount || creditedAccount !== expectedAccount) {
+  if (!isAccountMatch(receipt.creditedPartyAccountNo, process.env.TELEBIRR_RECEIVER_NUMBER)) {
     throw new PaymentVerificationError('Receipt was not paid to the configured Telebirr account.')
   }
 

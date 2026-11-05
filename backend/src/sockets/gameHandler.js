@@ -7,6 +7,7 @@ const { bot } = require('../bot/index')
 const rooms = {}
 const JWT_SECRET = process.env.JWT_SECRET
 const roomStatusRank = { WAITING: 0, COUNTDOWN: 1, PLAYING: 2, CLAIMING: 3, ENDED: 4 }
+const NO_WINNER_GRACE_MS = 5000
 
 function getBallData(number) {
   if (!Number.isFinite(Number(number))) return null
@@ -54,6 +55,7 @@ async function broadcastPlayerCount(io, roomId, room) {
 }
 
 function scheduleRoomReset(io, roomId, room) {
+  clearNoWinnerTimer(room)
   room.resetTimeoutId = setTimeout(async () => {
     if (rooms[roomId] !== room || room.status !== 'ENDED') return
 
@@ -74,6 +76,9 @@ function scheduleRoomReset(io, roomId, room) {
       room.calledNumbers.clear()
       room.claimedBy = []
       room.latestNumber = null
+      room.endedReason = null
+      room.noWinnerExpired = false
+      room.pendingClaims = 0
 
       io.to(roomId).emit('room_reset', {
         roomId,
@@ -94,6 +99,154 @@ function scheduleRoomReset(io, roomId, room) {
   }, 5000)
 }
 
+function clearNoWinnerTimer(room) {
+  if (!room?.timers?.noWinner) return
+  clearTimeout(room.timers.noWinner)
+  room.timers.noWinner = null
+}
+
+async function refundRoomParticipants(trx, roomId, stake) {
+  const participants = await trx('room_participants')
+    .where({ room_id: roomId })
+    .forUpdate()
+  const refunds = []
+
+  for (const participant of participants) {
+    const user = await trx('users')
+      .where({ id: participant.user_id })
+      .forUpdate()
+      .first()
+    if (!user) continue
+
+    await trx('users').where({ id: user.id }).increment('wallet_balance', stake)
+    const updatedUser = await trx('users').where({ id: user.id }).first()
+    await trx('financial_ledger').insert({
+      user_id: user.id,
+      amount: stake,
+      type: 'REFUND',
+      reference: roomId,
+    })
+    refunds.push({ userId: user.id, newBalance: Number(updatedUser.wallet_balance) })
+  }
+
+  return refunds
+}
+
+function emitRefundWalletUpdates(io, refunds) {
+  for (const refund of refunds) {
+    const userRoom = `user_${refund.userId}`
+    if (io.sockets.adapter.rooms.get(userRoom)?.size) {
+      io.to(userRoom).emit('wallet_updated', { newBalance: refund.newBalance })
+    }
+  }
+}
+
+function emitNoWinnerGameOver(io, roomId, room) {
+  const payload = {
+    reason: room.endedReason || 'no_winner',
+    balls_called: room.endedReason === 'round_interrupted' ? room.calledNumbers.size : 75,
+    winners: [],
+  }
+  if (!room.gameOverEmitted) {
+    io.to(roomId).emit('game_over', payload)
+    room.gameOverEmitted = true
+  }
+  return payload
+}
+
+async function handleNoWinner(io, roomId, room) {
+  if (
+    rooms[roomId] !== room ||
+    room.status !== 'PLAYING' ||
+    !room.noWinnerExpired ||
+    room.pendingClaims > 0 ||
+    room.noWinnerSettling
+  ) return
+
+  room.noWinnerSettling = true
+  try {
+    const settlement = await db.transaction(async (trx) => {
+      const persistedRoom = await trx('game_rooms')
+        .where({ id: roomId })
+        .forUpdate()
+        .first()
+      if (!persistedRoom || persistedRoom.status !== 'PLAYING') return null
+
+      const refunds = await refundRoomParticipants(trx, roomId, room.stake)
+      await trx('game_rooms').where({ id: roomId }).update({
+        status: 'ENDED',
+        winning_pattern: 'none',
+        called_numbers: JSON.stringify(Array.from(room.calledNumbers)),
+      })
+      return refunds
+    })
+
+    if (!settlement) {
+      room.noWinnerSettling = false
+      clearNoWinnerTimer(room)
+      return
+    }
+
+    room.status = 'ENDED'
+    room.endedReason = 'no_winner'
+    room.noWinnerSettling = false
+    clearNoWinnerTimer(room)
+    emitNoWinnerGameOver(io, roomId, room)
+    io.to(roomId).emit('game_ended_for_spectators')
+    emitRefundWalletUpdates(io, settlement)
+    scheduleRoomReset(io, roomId, room)
+  } catch (err) {
+    room.noWinnerSettling = false
+    console.error(`[Game] Failed to refund no-winner room ${roomId}:`, err)
+    room.timers.noWinner = setTimeout(() => {
+      handleNoWinner(io, roomId, room).catch((retryErr) => {
+        console.error(`[Game] No-winner refund retry failed for room ${roomId}:`, retryErr)
+      })
+    }, 1000)
+  }
+}
+
+async function recoverInterruptedRoom(io, roomId, room) {
+  const refunds = await db.transaction(async (trx) => {
+    const persistedRoom = await trx('game_rooms')
+      .where({ id: roomId })
+      .forUpdate()
+      .first()
+    if (!persistedRoom || !['PLAYING', 'CLAIMING'].includes(persistedRoom.status)) return null
+
+    const roomRefunds = await refundRoomParticipants(trx, roomId, room.stake)
+    await trx('game_rooms').where({ id: roomId }).update({
+      status: 'ENDED',
+      winning_pattern: 'interrupted',
+    })
+    return roomRefunds
+  })
+
+  if (!refunds) return
+
+  room.status = 'ENDED'
+  room.endedReason = 'round_interrupted'
+  room.timers.noWinner = null
+  emitNoWinnerGameOver(io, roomId, room)
+  io.to(roomId).emit('game_ended_for_spectators')
+  emitRefundWalletUpdates(io, refunds)
+  scheduleRoomReset(io, roomId, room)
+}
+
+function scheduleNoWinner(io, roomId, room) {
+  room.timers ||= {}
+  clearNoWinnerTimer(room)
+  room.noWinnerExpired = false
+  room.noWinnerSettling = false
+  room.pendingClaims ||= 0
+  room.timers.noWinner = setTimeout(() => {
+    room.noWinnerExpired = true
+    handleNoWinner(io, roomId, room).catch((err) => {
+      console.error(`[Game] No-winner settlement failed for room ${roomId}:`, err)
+    })
+  }, NO_WINNER_GRACE_MS)
+}
+
 async function startCountdown(io, roomId) {
   const room = rooms[roomId]
   if (!room || room.status !== 'WAITING') return
@@ -105,7 +258,10 @@ async function startCountdown(io, roomId) {
   console.log(`[Game] Starting countdown for ${roomId}`)
 
   try {
-    await db('game_rooms').where({ id: roomId }).update({ status: 'COUNTDOWN' })
+    await db('game_rooms').where({ id: roomId }).update({
+      status: 'COUNTDOWN',
+      winning_pattern: null,
+    })
   } catch (err) {
     console.error('[Game] Failed to update countdown status:', err)
     room.status = 'WAITING'
