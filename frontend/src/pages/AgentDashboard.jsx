@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useWallet } from '../WalletContext'
 import { fetchApi } from '../services/api'
+import ReferralPromo from '../components/ReferralPromo'
 
 const REFERRAL_THRESHOLD = 1000
 
@@ -32,7 +33,7 @@ export default function AgentDashboard() {
     }
   }, [t])
 
-  const botUsername = (import.meta.env.VITE_BOT_USERNAME || 'YogaBingoBot').replace(/^@/, '')
+  const botUsername = (import.meta.env.VITE_BOT_USERNAME || 'GoBingoBot').replace(/^@/, '')
   const telegramUser = window.Telegram?.WebApp?.initDataUnsafe?.user
   const username = telegramUser?.username || localStorage.getItem('telegramUsername')
   const telegramId = telegramUser?.id || localStorage.getItem('telegramId')
@@ -75,6 +76,7 @@ export default function AgentDashboard() {
         ← {t('back')}
       </button>
       <h1 className="text-2xl font-bold mb-4">{t('agent_dashboard')}</h1>
+      <ReferralPromo />
 
       {error ? (
         <p role="alert" className="bg-red-500/10 border border-red-400/30 text-red-200 rounded-xl p-4">

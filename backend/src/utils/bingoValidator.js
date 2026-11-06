@@ -1,9 +1,28 @@
-function validateBingo(cardMatrix, markedNumbers) {
-  // markedNumbers is an array of numbers the user tapped
-  const calledSet = new Set(markedNumbers);
+function validateBingo(cardMatrix, calledNumbers, markedNumbers) {
+  if (
+    !Array.isArray(cardMatrix) ||
+    cardMatrix.length !== 5 ||
+    cardMatrix.some((row) => !Array.isArray(row) || row.length !== 5) ||
+    !Array.isArray(markedNumbers)
+  ) {
+    return { isValid: false, pattern: null }
+  }
+
+  const calledSet = new Set(Array.from(calledNumbers || [], Number))
+  const markedSet = new Set(markedNumbers.map(Number))
+  const cardNumbers = new Set(cardMatrix.flat()
+    .filter((cell) => cell !== 'FREE')
+    .map(Number))
+
+  if (
+    markedNumbers.some((number) => !Number.isFinite(Number(number))) ||
+    Array.from(markedSet).some((number) => !calledSet.has(number) || !cardNumbers.has(number))
+  ) {
+    return { isValid: false, pattern: null }
+  }
 
   // Helper to check if a cell is marked (FREE is always marked)
-  const isMarked = (cell) => cell === 'FREE' || calledSet.has(cell);
+  const isMarked = (cell) => cell === 'FREE' || markedSet.has(Number(cell))
 
   // 1. Check Rows
   for (let r = 0; r < 5; r++) {

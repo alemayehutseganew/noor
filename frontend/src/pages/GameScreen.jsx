@@ -173,6 +173,10 @@ const GameScreen = () => {
       setBingoMessage(data);
       setTimeout(() => setBingoMessage(null), 4000);
     });
+    socket.on('bingo_invalid', (data) => {
+      setBingoMessage({ success: false, message: data.message });
+      setTimeout(() => setBingoMessage(null), 4000);
+    });
 
     if (socket.connected) handleJoin();
     else socket.on('connect', handleJoin);
@@ -194,6 +198,7 @@ const GameScreen = () => {
       socket.off('next_game_ready');
       socket.off('room_reset');
       socket.off('bingo_result');
+      socket.off('bingo_invalid');
     };
   }, [socket, roomId, userId, stake, isSpectator, navigate]);
 
