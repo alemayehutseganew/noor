@@ -18,25 +18,34 @@ export default function AgentDashboard() {
   useEffect(() => {
     let active = true
 
-    fetchApi('/users/referrals')
-      .then(async (response) => {
+    const fetchReferrals = async () => {
+      try {
+        const response = await fetchApi('/users/referrals')
         const data = await response.json()
         if (!response.ok) throw new Error(data.error || t('referral_load_failed'))
-        if (active) setReferrals(data)
-      })
-      .catch((err) => {
+        if (active) {
+          setReferrals(data)
+          setError('')
+        }
+      } catch (err) {
+        console.error('[FRONTEND] Failed to fetch agent data:', err)
         if (active) setError(err.message || t('referral_load_failed'))
-      })
+      }
+    }
+
+    fetchReferrals()
+    window.addEventListener('wallet-refresh', fetchReferrals)
 
     return () => {
       active = false
+      window.removeEventListener('wallet-refresh', fetchReferrals)
     }
   }, [t])
 
   const botUsername = (import.meta.env.VITE_BOT_USERNAME || 'GoBingoBot').replace(/^@/, '')
   const telegramUser = window.Telegram?.WebApp?.initDataUnsafe?.user
-  const username = telegramUser?.username || localStorage.getItem('telegramUsername')
-  const telegramId = telegramUser?.id || localStorage.getItem('telegramId')
+  const username = telegramUser?.username || localStorage.getItem('telegramUsername') || referrals?.username
+  const telegramId = telegramUser?.id || localStorage.getItem('telegramId') || referrals?.telegram_id
   const referralRef = username ? `@${username}` : String(telegramId || referrals?.referral_code || '')
   const startPayload = username
     ? `u_${username}`

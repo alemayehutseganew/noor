@@ -40,32 +40,62 @@ router.get('/leaderboard', async (req, res) => {
 // GET /api/users/referrals
 router.get('/referrals', userAuth, async (req, res) => {
   try {
-    const user = await db('users').where({ id: req.user.id }).first()
+    const user = await db('users')
+      .where({ id: req.user.id })
+      .select('username', 'telegram_id', 'referral_code', 'referral_balance')
+      .first()
     if (!user) return res.status(404).json({ error: 'User not found' })
 
-    const earnings = await db('referral_earnings')
-      .where({ inviter_id: user.id })
-      .sum('amount as total_earned')
-      .first()
-    const referredUsers = await db('users')
-      .where({ referred_by: user.id })
-      .select('id', 'first_name', 'created_at')
-      .orderBy('created_at', 'desc')
+    const [earnings, referredUsers] = await Promise.all([
+      db('referral_earnings')
+        .where({ inviter_id: req.user.id })
+        .sum('amount as total_earned')
+        .first(),
+      db('users')
+        .where({ referred_by: req.user.id })
+        .select('id', 'username', 'first_name', 'created_at')
+        .orderBy('created_at', 'desc'),
+    ])
 
     res.json({
-      referral_code: user.referral_code,
+      username: user.username,
+      telegram_id: user.telegram_id,
+      referral_code: user.referral_code || user.username || user.telegram_id,
       referral_balance: Number(user.referral_balance) || 0,
       referral_threshold: 1000,
+      referral_count: referredUsers.length,
       total_earned: Number(earnings?.total_earned) || 0,
       referred_users: referredUsers.map((referredUser) => ({
         id: referredUser.id,
-        name: referredUser.first_name?.trim() || `User ${referredUser.id}`,
+        name: referredUser.username
+          ? `@${referredUser.username}`
+          : referredUser.first_name?.trim() || 'Anonymous Player',
         joined_at: referredUser.created_at,
       })),
     })
   } catch (err) {
-    console.error('referrals error:', err)
-    res.status(500).json({ error: err.message })
+    console.error('[AGENT DASHBOARD FETCH ERROR]:', err)
+
+    const errorMessage = err.message || ''
+    if (
+      err.code === '42P01' ||
+      /relation ["']?referral_earnings["']? does not exist/i.test(errorMessage)
+    ) {
+      return res.status(500).json({
+        error: 'Missing table `referral_earnings`. Run `npx knex migrate:latest` from the backend directory.',
+      })
+    }
+
+    if (
+      err.code === '42703' &&
+      /referral_balance/i.test(errorMessage)
+    ) {
+      return res.status(500).json({
+        error: 'Missing column `users.referral_balance`. Run `npx knex migrate:latest` from the backend directory.',
+      })
+    }
+
+    return res.status(500).json({ error: 'Failed to load referral data. Check backend logs.' })
   }
 })
 
