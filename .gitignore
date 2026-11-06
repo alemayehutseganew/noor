@@ -1,3 +1,5 @@
 node_modules/
 .env
 dist/
+E2E_MANUAL_QA.md
+backend/tests
