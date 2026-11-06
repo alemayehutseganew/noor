@@ -7,7 +7,6 @@ const {
   PaymentVerificationError,
 } = require('../services/paymentService')
 
-const API_BASE = process.env.API_URL || 'http://localhost:3001'
 const userStates = {}
 const botTranslations = {
   en: {
@@ -48,6 +47,10 @@ const botTranslations = {
     phoneSaved: '✅ Phone number saved: {{phone}}\n\nYou can now use the bot normally.',
     registrationComplete: '✅ Registration complete! Phone number: {{phone}}',
     contactFailed: '❌ Failed to save your contact. Please try again.',
+    inviteEarn: '🎉 *Invite & Earn 5%!*\n\nShare your unique link with friends. When they win a game, you get 5% of their prize!\n\n🔗 Your Link:\n`{{link}}`\n\n*(You can withdraw your earnings once you reach 1,000 ETB!)*',
+    shareGroup: '📢 Share to Group/Channel',
+    openGame: '🎮 Open Game',
+    shareText: 'Join me on YogaBingo and win big! 🎰'
   },
   am: {
     selectLanguage: 'እባክዎ ቋንቋ ይምረጡ:',
@@ -87,11 +90,15 @@ const botTranslations = {
     phoneSaved: '✅ ስልክ ቁጥሩ ተቀምጧል፦ {{phone}}\n\nአሁን ቦቱን በመደበኛው መንገድ መጠቀም ይችላሉ።',
     registrationComplete: '✅ ምዝገባው ተጠናቋል! ስልክ ቁጥር፦ {{phone}}',
     contactFailed: '❌ የእውቂያ መረጃዎን ማስቀመጥ አልተሳካም። እባክዎ እንደገና ይሞክሩ።',
+    inviteEarn: '🎉 *ይጋብዙ እና 5% ያግቡ!*\n\nልዩ ሊንክዎን ለጓደኞችዎ ያጋሩ። እነሱ ሲያሸንፉ የሽልማታቸውን 5% ያገኛሉ!\n\n🔗 የእርስዎ ሊንክ፦\n`{{link}}`\n\n*(ገቢዎን 1,000 ብር ሲደርስ ማውጣት ይችላሉ!)*',
+    shareGroup: '📢 ለቡድን/ቻናል አጋራ',
+    openGame: '🎮 ጨዋታውን ክፈት',
+    shareText: 'በዮጋቢንጎ ይቀላቀሉኝ እና ትልቅ ያሸንፉ! 🎰'
   },
 }
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN)
-const DEFAULT_FRONTEND_URL = 'https://noor-one-beta.vercel.app'
+const DEFAULT_FRONTEND_URL = 'https://ked-seven.vercel.app'
 
 function getFrontendUrl(referralRef) {
   const url = new URL(process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL)
@@ -111,6 +118,7 @@ function getReferralRefFromStartPayload(payload) {
 function getReferralStartPayload(referralRef) {
   if (typeof referralRef !== 'string') return null
   const value = referralRef.trim()
+  // Telegram usernames must be at least 5 characters
   if (value.startsWith('@') && /^[A-Za-z0-9_]{5,32}$/.test(value.slice(1))) {
     return `u_${value.slice(1)}`
   }
@@ -125,12 +133,10 @@ function botText(lang, key, values = {}) {
   )
 }
 
-// Safe error handler for all bot actions
 bot.catch((err, ctx) => {
   console.error(`[BOT] Error for ${ctx.updateType}:`, err.message)
 })
 
-// Register menu and commands (safely)
 try {
   bot.telegram.setChatMenuButton({
     menu_button: { type: 'commands' }
@@ -151,7 +157,6 @@ try {
   console.error('Bot setup error:', e)
 }
 
-// Get user's language
 async function getUserLanguage(ctx) {
   try {
     const user = await db('users').where({ telegram_id: ctx.from.id }).first()
@@ -162,13 +167,12 @@ async function getUserLanguage(ctx) {
   return ctx.from?.language_code?.toLowerCase().startsWith('am') ? 'am' : 'en'
 }
 
-// Main menu
 function getMainMenu(lang = 'en') {
   const t = botTranslations[lang] || botTranslations.en
   return {
     reply_markup: {
       inline_keyboard: [
-        [{ text: t.playGame, web_app: { url: process.env.FRONTEND_URL || 'https://noor-one-beta.vercel.app' } }],
+        [{ text: t.playGame, web_app: { url: process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL } }],
         [{ text: t.checkBalance, callback_data: 'menu_balance' }, { text: t.deposit, callback_data: 'menu_deposit' }],
         [{ text: t.withdraw, callback_data: 'menu_withdraw' }, { text: t.myRoom, callback_data: 'menu_room' }],
         [{ text: t.help, callback_data: 'menu_help' }]
@@ -179,26 +183,32 @@ function getMainMenu(lang = 'en') {
 
 async function showInvite(ctx) {
   try {
+    const lang = await getUserLanguage(ctx)
     const user = await db('users').where({ telegram_id: ctx.from.id }).first()
-    if (!user) return ctx.reply('Please open the Mini App first to register.')
+    if (!user) return ctx.reply(botText(lang, 'userNotFound'))
 
     const refId = user.username ? `@${user.username}` : String(user.telegram_id)
     const startPayload = getReferralStartPayload(refId)
-    if (!startPayload) throw new Error('Could not create a valid referral start payload.')
-    const botUsername = (await ctx.telegram.getMe()).username
-    if (!botUsername) throw new Error('Telegram did not return the bot username.')
+    
+    if (!startPayload) {
+      // Fallback if username is too short or invalid
+      return ctx.reply('❌ Could not generate a valid referral link. Please set a Telegram username with at least 5 characters.')
+    }
+
+    const botUsername = ctx.botInfo.username
     const refLink = `https://t.me/${botUsername}?start=${encodeURIComponent(startPayload)}`
-    const message = `🎉 *Invite & Earn 5%!*\n\nShare your unique link with friends. When they win a game, you get 5% of their prize!\n\n🔗 Your Link:\n\`${refLink}\`\n\n*(You can withdraw your earnings once you reach 1,000 ETB!)*`
+    
+    const message = botText(lang, 'inviteEarn', { link: refLink })
 
     return ctx.replyWithMarkdown(message, {
       reply_markup: {
         inline_keyboard: [
           [{
-            text: '📢 Share to Group/Channel',
-            url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent('Join me on YogaBingo and win big! 🎰')}`,
+            text: botText(lang, 'shareGroup'),
+            url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(botText(lang, 'shareText'))}`,
           }],
           [{
-            text: '🎮 Open Game',
+            text: botText(lang, 'openGame'),
             web_app: { url: process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL },
           }],
         ],
@@ -210,7 +220,6 @@ async function showInvite(ctx) {
   }
 }
 
-// /start command
 bot.start(async (ctx) => {
   const lang = await getUserLanguage(ctx)
   const referralRef = getReferralRefFromStartPayload(ctx.startPayload)
@@ -234,11 +243,12 @@ bot.on('inline_query', async (ctx) => {
   const query = ctx.inlineQuery.query.trim().replace(/^start=/, '')
   const referralRef = query.startsWith('@') || /^\d+$/.test(query) ? query : null
   const startPayload = getReferralStartPayload(referralRef)
+  
   if (!startPayload) {
     return ctx.answerInlineQuery([], { cache_time: 0, is_personal: true })
   }
 
-  const botUsername = (process.env.BOT_USERNAME || 'YogaBingoBot').replace(/^@/, '')
+  const botUsername = ctx.botInfo.username
   await ctx.answerInlineQuery([{
     type: 'article',
     id: 'yogabingo-referral',
@@ -256,7 +266,6 @@ bot.on('inline_query', async (ctx) => {
   }], { cache_time: 0, is_personal: true })
 })
 
-// Language selection
 bot.action('lang_en', async (ctx) => {
   await ctx.answerCbQuery().catch(() => {})
   try { await db('users').where({ telegram_id: ctx.from.id }).update({ language: 'en' }) } catch (e) {}
@@ -269,24 +278,20 @@ bot.action('lang_am', async (ctx) => {
   ctx.reply(botText('am', 'languageSet'), getMainMenu('am')).catch(() => {})
 })
 
-// /menu command
 bot.command('menu', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   ctx.reply(botText(lang, 'mainMenu'), getMainMenu(lang)).catch(() => {})
 })
 
-// /invite command
 bot.command(['invite', 'refer'], showInvite)
 
-// /play command
 bot.command('play', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   ctx.reply(botText(lang, 'launchPrompt'), {
-    reply_markup: { inline_keyboard: [[{ text: botText(lang, 'playBingo'), web_app: { url: process.env.FRONTEND_URL || 'https://noor-one-beta.vercel.app' } }]] }
+    reply_markup: { inline_keyboard: [[{ text: botText(lang, 'playBingo'), web_app: { url: process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL } }]] }
   }).catch(() => {})
 })
 
-// /balance command
 bot.command('balance', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   try {
@@ -298,7 +303,6 @@ bot.command('balance', async (ctx) => {
   }
 })
 
-// /help command
 bot.command('help', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   ctx.reply(botText(lang, 'helpMessage')).catch(() => {})
@@ -314,21 +318,18 @@ bot.command('register', async (ctx) => {
   )
 })
 
-// /deposit command
 bot.command('deposit', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   userStates[ctx.from.id] = 'WAITING_FOR_RECEIPT'
-  ctx.reply(botText(lang, 'depositInstructions', { name: 'Kenaw Nuru Muhabe', phone: '0989002307' })).catch(() => {})
+  ctx.reply(botText(lang, 'depositInstructions', { name: 'Kedir Shifaw kebede', phone: '0930702649' })).catch(() => {})
 })
 
-// /withdraw command
 bot.command('withdraw', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   userStates[ctx.from.id] = 'WAITING_FOR_WITHDRAW_AMOUNT'
   ctx.reply(botText(lang, 'withdrawPrompt')).catch(() => {})
 })
 
-// Menu actions
 bot.action('menu_balance', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   try {
@@ -346,7 +347,7 @@ bot.action('menu_deposit', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   await ctx.answerCbQuery().catch(() => {})
   userStates[ctx.from.id] = 'WAITING_FOR_RECEIPT'
-  const msg = botText(lang, 'depositInstructions', { name: 'Kenaw Nuru Muhabe', phone: '0989002307' })
+  const msg = botText(lang, 'depositInstructions', { name: 'Kedir Shifaw kebede', phone: '0930702649' })
   ctx.reply(msg).catch(() => {})
 })
 
@@ -361,7 +362,7 @@ bot.action('menu_room', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   await ctx.answerCbQuery().catch(() => {})
   ctx.reply(botText(lang, 'roomPrompt'), {
-    reply_markup: { inline_keyboard: [[{ text: botText(lang, 'openLobby'), web_app: { url: process.env.FRONTEND_URL || 'https://noor-one-beta.vercel.app' } }]] }
+    reply_markup: { inline_keyboard: [[{ text: botText(lang, 'openLobby'), web_app: { url: process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL } }]] }
   }).catch(() => {})
 })
 
@@ -371,7 +372,6 @@ bot.action('menu_help', async (ctx) => {
   ctx.reply(botText(lang, 'helpMessage')).catch(() => {})
 })
 
-// Text handler for deposit/withdraw flows
 bot.on('text', async (ctx) => {
   try {
     const lang = await getUserLanguage(ctx)
@@ -433,12 +433,10 @@ bot.on('text', async (ctx) => {
       }
 
       await db.transaction(async (trx) => {
-        // 1. Deduct balance immediately
         await trx('users')
           .where({ id: user.id })
           .decrement('wallet_balance', amount);
 
-        // 2. Insert the pending withdrawal
         await trx('payments').insert({
           user_id: user.id,
           amount: amount,
