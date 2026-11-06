@@ -240,7 +240,7 @@ const resources = {
       invited_players: 'የጋበዟቸው ተጫዋቾች',
       total_earned: 'ጠቅላላ ገቢ',
       no_referrals_yet: 'እስካሁን ማንንም አልጋበዙም።',
-      promo_title: '🎉 በዮጋቢንጎ ይጋብዙ እና ያግቡ!',
+      promo_title: '🎉 በጎቢንጎ ይጋብዙ እና ያግቡ!',
       promo_subtitle: 'ሊንክዎን በማጋራት ከሚጋብዙት ተጫዋች ከሚያሸንፈው ገንዘብ 5% ያግኙ!',
       promo_how_it_works: '🏆 እንዴት ይሰራል?',
       promo_step_1: '1. ልዩ ሊንክዎን በቴሌግራም ቡድኖች/ቻናሎች ያጋሩ።',
