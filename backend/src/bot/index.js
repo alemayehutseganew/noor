@@ -182,9 +182,11 @@ async function showInvite(ctx) {
     const user = await db('users').where({ telegram_id: ctx.from.id }).first()
     if (!user) return ctx.reply('Please open the Mini App first to register.')
 
-    const refId = user.username || user.telegram_id
+    const refId = user.username ? `@${user.username}` : String(user.telegram_id)
+    const startPayload = getReferralStartPayload(refId)
+    if (!startPayload) throw new Error('Could not create a valid referral start payload.')
     const botUsername = ctx.botInfo.username
-    const refLink = `https://t.me/${botUsername}?start=REF_${refId}`
+    const refLink = `https://t.me/${botUsername}?start=${encodeURIComponent(startPayload)}`
     const message = `🎉 *Invite & Earn 5%!*\n\nShare your unique link with friends. When they win a game, you get 5% of their prize!\n\n🔗 Your Link:\n\`${refLink}\`\n\n*(You can withdraw your earnings once you reach 1,000 ETB!)*`
 
     return ctx.replyWithMarkdown(message, {
