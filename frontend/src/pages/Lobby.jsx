@@ -175,6 +175,10 @@ export default function Lobby() {
           <span className="text-2xl group-hover:scale-110 transition-transform">💰</span> 
           <span>{t('myWallet')}</span>
         </button>
+        <button onClick={() => { setIsMenuOpen(false); navigate('/agent'); }} className="flex items-center gap-3 w-full text-left text-white font-bold text-base p-3 rounded-xl hover:bg-white/10 transition-all group">
+          <span className="text-2xl group-hover:scale-110 transition-transform">👥</span>
+          <span>{t('agent_dashboard')}</span>
+        </button>
         <button onClick={() => { setIsMenuOpen(false); setHelpOpen(true); }} className="flex items-center gap-3 w-full text-left text-white font-bold text-base p-3 rounded-xl hover:bg-white/10 transition-all group">
           <span className="text-2xl group-hover:scale-110 transition-transform">❓</span> 
           <span>{t('helpRules')}</span>

@@ -7,7 +7,7 @@ import { fetchApi } from '../services/api'
 export default function Wallet() {
   const navigate = useNavigate()
   const { t } = useTranslation()
-  const { balance, loading, refreshBalance } = useWallet()
+  const { balance, referralBalance, referralThreshold, loading, refreshBalance } = useWallet()
   const [user, setUser] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState('')
@@ -79,7 +79,7 @@ export default function Wallet() {
     }
   }
 
-  const withdraw = async () => {
+  const withdraw = async (source = 'wallet', amount = withdrawAmount) => {
     setSubmitting(true)
     setMessage('')
     setMessageType('')
@@ -87,7 +87,7 @@ export default function Wallet() {
       const res = await fetchApi('/wallet/withdraw', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, amount: Number(withdrawAmount), provider: 'telebirr', phoneNumber }),
+        body: JSON.stringify({ userId, amount: Number(amount), provider: 'telebirr', phoneNumber, source }),
       })
       const data = await res.json()
       if (data.success) {
@@ -107,6 +107,8 @@ export default function Wallet() {
     }
   }
 
+  const progress = Math.min(Math.max((referralBalance / referralThreshold) * 100, 0), 100)
+
   const inputClass = "w-full bg-[#1e3a5f] text-white placeholder-gray-400 border-2 border-gray-600 rounded-lg p-3 focus:outline-none focus:border-yellow-500"
 
   return (
@@ -116,10 +118,44 @@ export default function Wallet() {
 
       {/* Balance Card */}
       <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mb-4">
-        <p className="text-sm text-gray-300 uppercase font-bold">{t('balance')}</p>
+        <p className="text-sm text-gray-300 uppercase font-bold">{t('playable_balance')}</p>
         <p className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500">
-          ETB {balance}
+          {balance} ETB
         </p>
+        <p className="text-xs text-gray-400 mt-1">{t('withdraw_anytime')}</p>
+      </div>
+
+      {/* Agent Balance */}
+      <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mb-4">
+        <p className="text-sm text-gray-300 uppercase font-bold">{t('agent_balance')}</p>
+        <div className="flex justify-between items-end mt-1">
+          <span className="text-2xl font-black text-white">{referralBalance}</span>
+          <span className="text-sm text-gray-400">/ {referralThreshold} ETB</span>
+        </div>
+        <div
+          className="w-full bg-gray-900 rounded-full h-2.5 mt-3"
+          role="progressbar"
+          aria-label={t('agent_balance')}
+          aria-valuemin={0}
+          aria-valuemax={referralThreshold}
+          aria-valuenow={Math.min(Math.max(referralBalance, 0), referralThreshold)}
+        >
+          <div
+            className="bg-blue-600 h-2.5 rounded-full transition-all"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        {referralBalance >= referralThreshold ? (
+          <button
+            onClick={() => withdraw('referral', referralBalance)}
+            disabled={loading || submitting}
+            className="mt-3 w-full bg-green-600 text-white font-bold py-2 rounded-lg disabled:opacity-50"
+          >
+            {t('withdraw_agent_earnings')}
+          </button>
+        ) : (
+          <p className="text-xs text-yellow-500 mt-2">{t('locked_until_threshold')}</p>
+        )}
       </div>
 
       {/* Manual Deposit */}

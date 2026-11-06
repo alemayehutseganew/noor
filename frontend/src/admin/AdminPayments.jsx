@@ -40,6 +40,14 @@ export default function AdminPayments() {
   }, [t]);
 
   const handlePaymentAction = async (tx, action) => {
+    if (
+      action === 'reject' &&
+      String(tx.type).toLowerCase() === 'withdrawal' &&
+      !window.confirm('Reject this withdrawal? The funds will be refunded to the original balance.')
+    ) {
+      return
+    }
+
     setProcessingId(tx.id);
     setError('');
     try {
@@ -52,11 +60,26 @@ export default function AdminPayments() {
       if (!res.ok) {
         throw new Error(data.error || t('failedAction', { action: t(action === 'approve' ? 'approve' : 'reject') }));
       }
+      const nextStatus = action === 'approve'
+        ? String(tx.type).toLowerCase() === 'withdrawal' ? 'approved' : 'completed'
+        : 'rejected'
       setTransactions((current) => current.map((payment) => (
         payment.id === tx.id
-          ? { ...payment, status: action === 'approve' ? 'completed' : 'rejected' }
+          ? { ...payment, status: nextStatus }
           : payment
       )));
+
+      try {
+        const refreshRes = await fetchApi('/admin/payments', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const refreshData = await refreshRes.json();
+        if (!refreshRes.ok) throw new Error(refreshData.error || t('failedLoadPayments'));
+        setTransactions(refreshData.transactions || []);
+      } catch (refreshErr) {
+        console.error('Failed to refresh payments:', refreshErr);
+        setError(refreshErr.message || t('failedLoadPayments'));
+      }
     } catch (err) {
       console.error(`Failed to ${action} payment:`, err);
       setError(err.message || t('failedAction', { action: t(action === 'approve' ? 'approve' : 'reject') }));
@@ -74,6 +97,7 @@ export default function AdminPayments() {
       tx.type,
       tx.status,
       tx.reference_id,
+      tx.source,
     ];
     return searchableFields.some((value) => String(value || '').toLowerCase().includes(search));
   });
@@ -94,6 +118,7 @@ export default function AdminPayments() {
       case 'pending':
         return 'bg-yellow-900/50 text-yellow-300';
       case 'completed':
+      case 'approved':
         return 'bg-green-900/50 text-green-300';
       case 'rejected':
         return 'bg-red-900/50 text-red-300';
@@ -135,6 +160,7 @@ export default function AdminPayments() {
             <tr>
               <th scope="col" className="px-3 py-4 font-semibold sm:px-5">{t('user')}</th>
               <th scope="col" className="px-3 py-4 font-semibold sm:px-5">{t('type')}</th>
+              <th scope="col" className="px-3 py-4 font-semibold sm:px-5">Source</th>
               <th scope="col" className="px-3 py-4 font-semibold sm:px-5">{t('amount')}</th>
               <th scope="col" className="px-3 py-4 font-semibold sm:px-5">{t('reference')}</th>
               <th scope="col" className="px-3 py-4 font-semibold sm:px-5">{t('status')}</th>
@@ -160,6 +186,9 @@ export default function AdminPayments() {
                     <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold capitalize ${getTypeStyles(type)}`}>
                       {t(`type_${type}`, { defaultValue: type || t('unknown') })}
                     </span>
+                  </td>
+                  <td className="px-3 py-4 sm:px-5">
+                    {type === 'withdrawal' ? (tx.source === 'referral' ? 'Agent' : 'Playable') : '—'}
                   </td>
                   <td className="whitespace-nowrap px-3 py-4 font-mono font-semibold text-white sm:px-5">
                     {Number(tx.amount || 0).toFixed(2)} ETB
@@ -206,7 +235,7 @@ export default function AdminPayments() {
             })}
             {filteredTransactions.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-5 py-10 text-center text-slate-400">
+                <td colSpan={8} className="px-5 py-10 text-center text-slate-400">
                   {transactions.length === 0 ? t('noPayments') : t('noPaymentsMatch')}
                 </td>
               </tr>

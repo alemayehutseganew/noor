@@ -423,6 +423,10 @@ async function startCountdown(io, roomId) {
           } while (room.calledNumbers.has(number))
 
           room.calledNumbers.add(number)
+          db('game_rooms')
+            .where({ id: roomId })
+            .update({ called_numbers: JSON.stringify(Array.from(room.calledNumbers)) })
+            .catch((err) => console.error('[DRAW DB SAVE ERROR]', err))
 
           let letter = 'B'
           if (number > 15) letter = 'I'
@@ -726,7 +730,9 @@ function initGameHandler(io) {
         console.log(`[PAYOUT] Pool: ${totalPool}, Fee: ${platformFee}, Payout: ${payoutPerWinner}`);
 
         // Process payouts in DB
+        const referralWalletUpdates = []
         await db.transaction(async (trx) => {
+          const referredWinners = []
           for (const winnerId of room.claimedBy) {
             let winnerUser = await trx('users').where({ id: winnerId }).first();
             if (!winnerUser) winnerUser = await trx('users').where({ telegram_id: winnerId }).first();
@@ -743,9 +749,59 @@ function initGameHandler(io) {
               type: 'WINNING_PAYOUT'
             });
             console.log(`[PAYOUT] Credited ${payoutPerWinner} to winner ${winnerUser.id}`);
+            if (winnerUser.referred_by) {
+              referredWinners.push({ inviteeId: winnerUser.id, inviterId: winnerUser.referred_by })
+            }
+          }
+
+          if (referredWinners.length > 0) {
+            const totalCommissionCents = Math.round(totalPool * 0.05 * 100)
+            const baseCommissionCents = Math.floor(totalCommissionCents / referredWinners.length)
+            const remainderCents = totalCommissionCents % referredWinners.length
+
+            for (const [index, referredWinner] of referredWinners.entries()) {
+              const commissionCents = baseCommissionCents + (index < remainderCents ? 1 : 0)
+              const commission = commissionCents / 100
+              if (commission <= 0) continue
+
+              await trx('users')
+                .where({ id: referredWinner.inviterId })
+                .increment('referral_balance', commission)
+              await trx('referral_earnings').insert({
+                inviter_id: referredWinner.inviterId,
+                invitee_id: referredWinner.inviteeId,
+                room_id: roomId,
+                amount: commission,
+              })
+              await trx('financial_ledger').insert({
+                user_id: referredWinner.inviterId,
+                amount: commission,
+                type: 'referral_commission',
+                reference: `Locked referral commission for room ${roomId}`,
+              })
+
+              const inviter = await trx('users').where({ id: referredWinner.inviterId }).first()
+              if (inviter) {
+                referralWalletUpdates.push({
+                  userId: inviter.id,
+                  newBalance: Number(inviter.wallet_balance),
+                  referralBalance: Number(inviter.referral_balance),
+                })
+              }
+            }
           }
           await trx('game_rooms').where({ id: roomId }).update({ status: 'ENDED' });
         });
+
+        for (const update of referralWalletUpdates) {
+          const userRoom = `user_${update.userId}`
+          if (io.sockets.adapter.rooms.get(userRoom)?.size) {
+            io.to(userRoom).emit('wallet_updated', {
+              newBalance: update.newBalance,
+              referralBalance: update.referralBalance,
+            })
+          }
+        }
 
         // Emit game over to everyone
         room.status = 'ENDED';

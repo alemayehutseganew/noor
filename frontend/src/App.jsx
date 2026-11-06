@@ -4,6 +4,7 @@ import Lobby from './pages/Lobby'
 import CardSelection from './pages/CardSelection'
 import GameScreen from './pages/GameScreen'
 import Wallet from './pages/Wallet'
+import AgentDashboard from './pages/AgentDashboard'
 import Settings from './pages/Settings'
 import GameHistory from './pages/GameHistory'
 import Leaderboard from './pages/Leaderboard'
@@ -27,11 +28,12 @@ export default function App() {
 
     const initData = tg?.initData || ''
     if (!initData) return
+    const referralRef = new URLSearchParams(window.location.search).get('ref') || ''
 
     fetchApi('/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ initData }),
+      body: JSON.stringify({ initData, referralRef }),
     })
       .then((r) => r.json())
       .then((data) => {
@@ -39,6 +41,9 @@ export default function App() {
           localStorage.setItem('token', data.token)
           localStorage.setItem('dbUserId', data.user.id)
           localStorage.setItem('walletBalance', data.user.wallet_balance)
+          if (data.user.username) localStorage.setItem('telegramUsername', data.user.username)
+          else localStorage.removeItem('telegramUsername')
+          localStorage.setItem('telegramId', String(data.user.telegram_id))
           SocketService.connect(data.token)
           window.dispatchEvent(new Event('wallet-refresh'))
         }
@@ -57,6 +62,7 @@ export default function App() {
             <Route path="/select-cards" element={<CardSelection />} />
             <Route path="/game" element={<GameScreen />} />
             <Route path="/wallet" element={<Wallet />} />
+            <Route path="/agent" element={<AgentDashboard />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/history" element={<GameHistory />} />
             <Route path="/leaderboard" element={<Leaderboard />} />

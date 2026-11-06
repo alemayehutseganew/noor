@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken')
 const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
 const { adminAuth, JWT_SECRET } = require('../middleware/adminAuth')
-const archiveData = require('../../scripts/archive_old_data');
+const { archiveOldData } = require('../../scripts/archive_old_data')
 
 function verifyPassword(password, stored) {
   if (/^\$2[aby]\$/.test(stored)) {
@@ -234,7 +234,8 @@ router.get('/payments', adminAuth, async (req, res) => {
         'payments.type',
         'payments.status',
         'payments.transaction_reference as reference_id',
-        'payments.created_at'
+        'payments.created_at',
+        db.raw("COALESCE(payments.provider_response->>'source', 'wallet') as source")
       )
       .orderBy('payments.created_at', 'desc')
 
@@ -247,8 +248,8 @@ router.get('/payments', adminAuth, async (req, res) => {
 router.post('/payments/:id/approve', adminAuth, async (req, res) => {
   try {
     let paymentType
-    let newBalance
     let targetUserId
+    let newBalance
     await db.transaction(async (trx) => {
       const p = await trx('payments').where({ id: req.params.id }).forUpdate().first()
       if (!p) {
@@ -262,55 +263,45 @@ router.post('/payments/:id/approve', adminAuth, async (req, res) => {
         throw err
       }
 
-      const user = await trx('users').where({ id: p.user_id }).first()
-      if (!user) {
-        const err = new Error('User not found')
-        err.statusCode = 404
-        throw err
-      }
-
       if (p.type === 'deposit') {
-        await trx('users').where({ id: p.user_id }).increment('wallet_balance', p.amount)
-      } else if (p.type === 'withdrawal') {
-        const current = await trx('users').where({ id: p.user_id }).forUpdate().first()
-        if (!current || Number(current.wallet_balance || 0) < Number(p.amount)) {
-          const err = new Error('INSUFFICIENT_BALANCE')
-          err.code = 'INSUFFICIENT_BALANCE'
+        const user = await trx('users').where({ id: p.user_id }).forUpdate().first()
+        if (!user) {
+          const err = new Error('User not found')
+          err.statusCode = 404
           throw err
         }
-        await trx('users').where({ id: p.user_id }).decrement('wallet_balance', p.amount)
-      }
-
-      await trx('payments').where({ id: p.id }).update({ status: 'completed' })
-
-      const hasLedger = await trx.schema.hasTable('financial_ledger')
-      if (hasLedger) {
+        await trx('users').where({ id: p.user_id }).increment('wallet_balance', p.amount)
+        newBalance = Number(user.wallet_balance || 0) + Number(p.amount)
         await trx('financial_ledger').insert({
           user_id: p.user_id,
-          amount: p.type === 'deposit' ? p.amount : -p.amount,
-          type: p.type === 'deposit' ? 'DEPOSIT' : 'WITHDRAWAL',
+          amount: p.amount,
+          type: 'DEPOSIT',
           reference: `PAYMENT-${p.id}`,
           created_at: new Date(),
         })
+      } else if (p.type !== 'withdrawal') {
+        const err = new Error('Unsupported payment type')
+        err.statusCode = 400
+        throw err
       }
+
+      await trx('payments').where({ id: p.id }).update({
+        status: p.type === 'withdrawal' ? 'approved' : 'completed',
+      })
       paymentType = p.type
       targetUserId = p.user_id
-      newBalance =
-        Number(user.wallet_balance || 0) +
-        (p.type === 'deposit' ? Number(p.amount) : -Number(p.amount))
     })
 
-    try {
-      req.app.get('io')?.to(`user_${targetUserId}`).emit('wallet_updated', { newBalance })
-    } catch (emitErr) {
-      console.error('Failed to emit wallet_updated:', emitErr)
+    if (paymentType === 'deposit') {
+      try {
+        req.app.get('io')?.to(`user_${targetUserId}`).emit('wallet_updated', { newBalance })
+      } catch (emitErr) {
+        console.error('Failed to emit wallet_updated:', emitErr)
+      }
     }
 
     res.json({ success: true, message: `${paymentType} approved` })
   } catch (err) {
-    if (err.code === 'INSUFFICIENT_BALANCE') {
-      return res.status(400).json({ error: 'User has insufficient balance for withdrawal' })
-    }
     if (err.statusCode) return res.status(err.statusCode).json({ error: err.message })
     res.status(500).json({ error: err.message })
   }
@@ -321,6 +312,7 @@ router.post('/payments/:id/reject', adminAuth, async (req, res) => {
     let paymentType
     let targetUserId
     let newBalance
+    let newReferralBalance
     await db.transaction(async (trx) => {
       const p = await trx('payments').where({ id: req.params.id }).forUpdate().first()
       if (!p) {
@@ -342,19 +334,28 @@ router.post('/payments/:id/reject', adminAuth, async (req, res) => {
           throw err
         }
 
-        await trx('users').where({ id: p.user_id }).increment('wallet_balance', p.amount)
-        newBalance = Number(user.wallet_balance || 0) + Number(p.amount)
-
-        const hasLedger = await trx.schema.hasTable('financial_ledger')
-        if (hasLedger) {
-          await trx('financial_ledger').insert({
-            user_id: p.user_id,
-            amount: p.amount,
-            type: 'REFUND',
-            reference: `REFUND-PAYMENT-${p.id}`,
-            created_at: new Date(),
-          })
+        const source = p.provider_response?.source || 'wallet'
+        if (source === 'referral') {
+          await trx('users').where({ id: p.user_id }).increment('referral_balance', p.amount)
+          newReferralBalance = Number(user.referral_balance || 0) + Number(p.amount)
+          newBalance = Number(user.wallet_balance || 0)
+        } else {
+          await trx('users').where({ id: p.user_id }).increment('wallet_balance', p.amount)
+          newBalance = Number(user.wallet_balance || 0) + Number(p.amount)
+          newReferralBalance = Number(user.referral_balance || 0)
         }
+
+        await trx('financial_ledger').insert({
+          user_id: p.user_id,
+          amount: p.amount,
+          type: 'withdrawal_refund',
+          reference: `REFUND-PAYMENT-${p.id}`,
+          created_at: new Date(),
+        })
+      } else if (p.type !== 'deposit') {
+        const err = new Error('Unsupported payment type')
+        err.statusCode = 400
+        throw err
       }
 
       await trx('payments').where({ id: p.id }).update({ status: 'rejected' })
@@ -364,7 +365,7 @@ router.post('/payments/:id/reject', adminAuth, async (req, res) => {
 
     if (paymentType === 'withdrawal') {
       try {
-        req.app.get('io')?.to(`user_${targetUserId}`).emit('wallet_updated', { newBalance })
+        req.app.get('io')?.to(`user_${targetUserId}`).emit('wallet_updated', { newBalance, referralBalance: newReferralBalance })
       } catch (emitErr) {
         console.error('Failed to emit wallet_updated:', emitErr)
       }

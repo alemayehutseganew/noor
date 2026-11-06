@@ -91,6 +91,32 @@ const botTranslations = {
 }
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN)
+const DEFAULT_FRONTEND_URL = 'https://noor-one-beta.vercel.app'
+
+function getFrontendUrl(referralRef) {
+  const url = new URL(process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL)
+  if (referralRef) url.searchParams.set('ref', referralRef)
+  return url.toString()
+}
+
+function getReferralRefFromStartPayload(payload) {
+  if (!payload) return null
+  if (payload.startsWith('u_')) return `@${payload.slice(2)}`
+  if (payload.startsWith('i_')) return payload.slice(2)
+  if (payload.startsWith('@') || /^\d+$/.test(payload)) return payload
+  if (payload.startsWith('REF_')) return payload
+  return null
+}
+
+function getReferralStartPayload(referralRef) {
+  if (typeof referralRef !== 'string') return null
+  const value = referralRef.trim()
+  if (value.startsWith('@') && /^[A-Za-z0-9_]{5,32}$/.test(value.slice(1))) {
+    return `u_${value.slice(1)}`
+  }
+  if (/^\d+$/.test(value)) return `i_${value}`
+  return null
+}
 
 function botText(lang, key, values = {}) {
   return Object.entries(values).reduce(
@@ -154,13 +180,41 @@ function getMainMenu(lang = 'en') {
 // /start command
 bot.start(async (ctx) => {
   const lang = await getUserLanguage(ctx)
+  const referralRef = getReferralRefFromStartPayload(ctx.startPayload)
   ctx.reply(botText(lang, 'selectLanguage'), {
     reply_markup: {
       inline_keyboard: [
-        [{ text: botText(lang, 'english'), callback_data: 'lang_en' }, { text: botText(lang, 'amharic'), callback_data: 'lang_am' }]
+        [{ text: botText(lang, 'english'), callback_data: 'lang_en' }, { text: botText(lang, 'amharic'), callback_data: 'lang_am' }],
+        [{ text: '🎮 Open Game', web_app: { url: getFrontendUrl(referralRef) } }],
       ]
     }
   }).catch(e => console.error('Start error:', e))
+})
+
+bot.on('inline_query', async (ctx) => {
+  const query = ctx.inlineQuery.query.trim().replace(/^start=/, '')
+  const referralRef = query.startsWith('@') || /^\d+$/.test(query) ? query : null
+  const startPayload = getReferralStartPayload(referralRef)
+  if (!startPayload) {
+    return ctx.answerInlineQuery([], { cache_time: 0, is_personal: true })
+  }
+
+  const botUsername = (process.env.BOT_USERNAME || 'YogaBingoBot').replace(/^@/, '')
+  await ctx.answerInlineQuery([{
+    type: 'article',
+    id: 'yogabingo-referral',
+    title: 'Play YogaBingo!',
+    description: 'Tap to join the game and play.',
+    input_message_content: {
+      message_text: '🎰 Join me on YogaBingo and play!',
+    },
+    reply_markup: {
+      inline_keyboard: [[{
+        text: '🎮 Play Now',
+        url: `https://t.me/${botUsername}?start=${encodeURIComponent(startPayload)}`,
+      }]],
+    },
+  }], { cache_time: 0, is_personal: true })
 })
 
 // Language selection
