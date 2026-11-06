@@ -5,8 +5,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node src/server.js",
-    "test": "jest --runInBand"
+    "test": "jest --runInBand --detectOpenHandles"
   },
   "keywords": [],
   "author": "",
