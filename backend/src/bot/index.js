@@ -185,7 +185,8 @@ async function showInvite(ctx) {
     const refId = user.username ? `@${user.username}` : String(user.telegram_id)
     const startPayload = getReferralStartPayload(refId)
     if (!startPayload) throw new Error('Could not create a valid referral start payload.')
-    const botUsername = ctx.botInfo.username
+    const botUsername = (await ctx.telegram.getMe()).username
+    if (!botUsername) throw new Error('Telegram did not return the bot username.')
     const refLink = `https://t.me/${botUsername}?start=${encodeURIComponent(startPayload)}`
     const message = `🎉 *Invite & Earn 5%!*\n\nShare your unique link with friends. When they win a game, you get 5% of their prize!\n\n🔗 Your Link:\n\`${refLink}\`\n\n*(You can withdraw your earnings once you reach 1,000 ETB!)*`
 
