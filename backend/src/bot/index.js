@@ -137,15 +137,15 @@ try {
   }).then(() => console.log('✅ Menu button forced to COMMANDS mode')).catch(console.error)
 
   bot.telegram.setMyCommands([
-    { command: 'register', description: 'Register phone / ስልክ ያስመዝግቡ' },
-    { command: 'start', description: 'Restart / እንደገና ይጀምሩ' },
-    { command: 'menu', description: 'Main menu / ዋና ምናሌ' },
-    { command: 'play', description: 'Play / ይጫወቱ' },
-    { command: 'balance', description: 'Balance / ቀሪ ሂሳብ' },
-    { command: 'deposit', description: 'Deposit / ገንዘብ ያስገቡ' },
-    { command: 'withdraw', description: 'Withdraw / ገንዘብ ያውጡ' },
-    { command: 'help', description: 'How to play / እንዴት መጫወት እንደሚቻል' }
-    
+    { command: 'start', description: 'Start the bot and open the game' },
+    { command: 'balance', description: 'Check your wallet balance' },
+    { command: 'invite', description: 'Get your referral link to earn 5%' },
+    { command: 'deposit', description: 'Deposit ETB to play' },
+    { command: 'withdraw', description: 'Withdraw your winnings' },
+    { command: 'menu', description: 'Open the game menu' },
+    { command: 'play', description: 'Play the game' },
+    { command: 'help', description: 'How to play the game' },
+    { command: 'register', description: 'Register your phone number' }
   ]).then(() => console.log('✅ Commands registered')).catch(console.error)
 } catch (e) {
   console.error('Bot setup error:', e)
@@ -177,6 +177,36 @@ function getMainMenu(lang = 'en') {
   }
 }
 
+async function showInvite(ctx) {
+  try {
+    const user = await db('users').where({ telegram_id: ctx.from.id }).first()
+    if (!user) return ctx.reply('Please open the Mini App first to register.')
+
+    const refId = user.username || user.telegram_id
+    const botUsername = ctx.botInfo.username
+    const refLink = `https://t.me/${botUsername}?start=REF_${refId}`
+    const message = `🎉 *Invite & Earn 5%!*\n\nShare your unique link with friends. When they win a game, you get 5% of their prize!\n\n🔗 Your Link:\n\`${refLink}\`\n\n*(You can withdraw your earnings once you reach 1,000 ETB!)*`
+
+    return ctx.replyWithMarkdown(message, {
+      reply_markup: {
+        inline_keyboard: [
+          [{
+            text: '📢 Share to Group/Channel',
+            url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent('Join me on YogaBingo and win big! 🎰')}`,
+          }],
+          [{
+            text: '🎮 Open Game',
+            web_app: { url: process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL },
+          }],
+        ],
+      },
+    })
+  } catch (err) {
+    console.error('Invite command error:', err)
+    return ctx.reply('❌ Could not generate your invite link. Please try again later.')
+  }
+}
+
 // /start command
 bot.start(async (ctx) => {
   const lang = await getUserLanguage(ctx)
@@ -186,9 +216,15 @@ bot.start(async (ctx) => {
       inline_keyboard: [
         [{ text: botText(lang, 'english'), callback_data: 'lang_en' }, { text: botText(lang, 'amharic'), callback_data: 'lang_am' }],
         [{ text: '🎮 Open Game', web_app: { url: getFrontendUrl(referralRef) } }],
+        [{ text: '👥 Invite Friends & Earn 5%', callback_data: 'show_invite' }],
       ]
     }
   }).catch(e => console.error('Start error:', e))
+})
+
+bot.action('show_invite', async (ctx) => {
+  await ctx.answerCbQuery()
+  await showInvite(ctx)
 })
 
 bot.on('inline_query', async (ctx) => {
@@ -235,6 +271,9 @@ bot.command('menu', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   ctx.reply(botText(lang, 'mainMenu'), getMainMenu(lang)).catch(() => {})
 })
+
+// /invite command
+bot.command(['invite', 'refer'], showInvite)
 
 // /play command
 bot.command('play', async (ctx) => {
