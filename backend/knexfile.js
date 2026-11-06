@@ -14,7 +14,6 @@ function buildConfig() {
   }
   const databaseUrl = normalizeDatabaseUrl(process.env.DATABASE_URL)
   if (databaseUrl) {
-    process.env.DATABASE_URL = databaseUrl
     return {
       ...base,
       client: 'pg',
@@ -37,9 +36,23 @@ function buildConfig() {
   }
 }
 
-const config = buildConfig()
-
 module.exports = {
-  development: config,
-  production: config,
+  development: buildConfig(),
+  production: {
+    client: 'pg',
+    connection: {
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    },
+    pool: {
+      min: 0,
+      max: 1,
+      acquireTimeoutMillis: 60000,
+      createTimeoutMillis: 30000,
+      idleTimeoutMillis: 10000
+    },
+    migrations: {
+      directory: './migrations'
+    }
+  }
 }

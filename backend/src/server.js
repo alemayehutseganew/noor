@@ -54,7 +54,7 @@ const usersRoutes = require('./routes/users')
 const adminRoutes = require('./routes/admin')
 const db = require('./db')
 const { setupSocket } = require('./sockets/gameHandler')
-const { launch: launchBot } = require('./bot')
+const { bot } = require('./bot/index')
 
 const app = express()
 
@@ -89,6 +89,8 @@ const corsOptions = {
 // cors() already answers OPTIONS preflight requests — no app.options() needed.
 app.use(cors(corsOptions))
 app.use(express.json({ limit: '1mb' }))
+
+app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => bot.handleUpdate(req.body, res))
 
 // --- Health check ---
 app.get('/health', (req, res) => {
@@ -162,11 +164,12 @@ async function start() {
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`)
-    try {
-      launchBot()
-      console.log('🤖 Telegram bot launched')
-    } catch (err) {
-      console.error('❌ Bot launch failed:', err.message)
+
+    const webhookUrl = process.env.WEBHOOK_URL
+    if (webhookUrl) {
+      bot.telegram.setWebhook(`${webhookUrl.replace(/\/+$/, '')}/telegraf/${bot.secretPathComponent()}`)
+        .then(() => console.log('✅ Telegram Webhook set successfully'))
+        .catch((err) => console.error('❌ Failed to set Telegram Webhook:', err))
     }
   })
 }

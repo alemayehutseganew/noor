@@ -398,15 +398,4 @@ bot.on('contact', async (ctx) => {
   }
 })
 
-// Launch the bot
-function launch() {
-  if (!process.env.TELEGRAM_BOT_TOKEN) {
-    console.log('TELEGRAM_BOT_TOKEN not set, skipping bot launch')
-    return
-  }
-  bot.launch().then(() => console.log('✅ Telegram bot launched')).catch((e) => console.error('Bot launch error:', e))
-  process.once('SIGINT', () => bot.stop('SIGINT'))
-  process.once('SIGTERM', () => bot.stop('SIGTERM'))
-}
-
-module.exports = { bot, launch, getMainMenu }
+module.exports = { bot, getMainMenu }
