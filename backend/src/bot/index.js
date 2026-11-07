@@ -240,14 +240,18 @@ async function showInvite(ctx) {
 }
 
 bot.start(async (ctx) => {
-  const lang = await getUserLanguage(ctx)
-  const referralRef = getReferralRefFromStartPayload(ctx.startPayload)
-  ctx.reply(botText(lang, 'selectLanguage'), {
+  const text = 'Please select your language / እባክዎ ቋንቋ ይምረጡ:'
+
+  ctx.reply(text, {
     reply_markup: {
       inline_keyboard: [
-        [{ text: botText(lang, 'english'), callback_data: 'lang_en' }, { text: botText(lang, 'amharic'), callback_data: 'lang_am' }],
-        [{ text: '🎮 Open Game', web_app: { url: getFrontendUrl(referralRef) } }],
-        [{ text: '👥 Invite Friends & Earn 5%', callback_data: 'show_invite' }],
+        [
+          { text: '🇬🇧 English', callback_data: 'lang_en' },
+          { text: '🇪🇹 አማርኛ', callback_data: 'lang_am' }
+        ],
+        [
+          { text: '👥 Invite Friends & Earn 5%', callback_data: 'show_invite' }
+        ]
       ]
     }
   }).catch(e => console.error('Start error:', e))
