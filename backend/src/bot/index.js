@@ -212,11 +212,12 @@ async function showInvite(ctx) {
       return ctx.reply(botText(lang, 'userNotFound'))
     }
 
-    let refId = user.username ? `@${user.username}` : String(user.telegram_id)
+    const username = ctx.from?.username || user.username
+    let refId = username ? `@${username}` : String(user.telegram_id)
     let startPayload = getReferralStartPayload(refId)
 
     if (!startPayload) {
-      console.log('[INVITE DEBUG] Username failed regex, falling back to telegram_id.')
+      console.log('[INVITE DEBUG] Username is invalid, falling back to telegram_id.')
       refId = String(user.telegram_id)
       startPayload = getReferralStartPayload(refId)
     }
