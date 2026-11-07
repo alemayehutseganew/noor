@@ -145,6 +145,15 @@ function botText(lang, key, values = {}) {
   )
 }
 
+async function resolveBotUsername(ctx) {
+  if (ctx.botInfo?.username) return ctx.botInfo.username
+
+  const configuredUsername = process.env.BOT_USERNAME?.trim().replace(/^@/, '')
+  if (configuredUsername) return configuredUsername
+
+  return (await bot.telegram.getMe()).username
+}
+
 bot.catch((err, ctx) => {
   console.error(`[BOT] Error for ${ctx.updateType}:`, err.message)
 })
@@ -217,7 +226,8 @@ async function showInvite(ctx) {
       return ctx.reply('❌ Error generating link. Please contact support.')
     }
 
-    const botUsername = ctx.botInfo?.username || process.env.BOT_USERNAME || 'GoBingoBot'
+    const botUsername = await resolveBotUsername(ctx)
+    if (!botUsername) throw new Error('Telegram bot username is unavailable')
     console.log('[INVITE DEBUG] Bot Username resolved to:', botUsername)
     const refLink = `https://t.me/${botUsername}?start=${encodeURIComponent(startPayload)}`
 
@@ -271,7 +281,7 @@ bot.on('inline_query', async (ctx) => {
     return ctx.answerInlineQuery([], { cache_time: 0, is_personal: true })
   }
 
-  const botUsername = ctx.botInfo.username
+  const botUsername = await resolveBotUsername(ctx)
   await ctx.answerInlineQuery([{
     type: 'article',
     id: 'Gobingo-referral',
