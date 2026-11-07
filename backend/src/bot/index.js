@@ -47,7 +47,7 @@ const botTranslations = {
     phoneSaved: '✅ Phone number saved: {{phone}}\n\nYou can now use the bot normally.',
     registrationComplete: '✅ Registration complete! Phone number: {{phone}}',
     contactFailed: '❌ Failed to save your contact. Please try again.',
-    inviteEarn: '🎉 *Invite & Earn 5%!*\n\nShare your unique link with friends. When they win a game, you get 5% of their prize!\n\n🔗 Your Link:\n`{{link}}`\n\n*(You can withdraw your earnings once you reach 1,000 ETB!)*',
+    inviteEarn: '🎉 Invite & Earn 5%!\n\nShare your unique link with friends. When they win a game, you get 5% of their prize!\n\n🔗 Your Link:\n{{link}}\n\n(You can withdraw your earnings once you reach 1,000 ETB!)',
     shareGroup: '📢 Share to Group/Channel',
     openGame: '🎮 Open Game',
     shareText: 'Join me on GoBingo and win big! 🎰'
@@ -90,7 +90,7 @@ const botTranslations = {
     phoneSaved: '✅ ስልክ ቁጥሩ ተቀምጧል፦ {{phone}}\n\nአሁን ቦቱን በመደበኛው መንገድ መጠቀም ይችላሉ።',
     registrationComplete: '✅ ምዝገባው ተጠናቋል! ስልክ ቁጥር፦ {{phone}}',
     contactFailed: '❌ የእውቂያ መረጃዎን ማስቀመጥ አልተሳካም። እባክዎ እንደገና ይሞክሩ።',
-    inviteEarn: '🎉 *ይጋብዙ እና 5% ያግቡ!*\n\nልዩ ሊንክዎን ለጓደኞችዎ ያጋሩ። እነሱ ሲያሸንፉ የሽልማታቸውን 5% ያገኛሉ!\n\n🔗 የእርስዎ ሊንክ፦\n`{{link}}`\n\n*(ገቢዎን 1,000 ብር ሲደርስ ማውጣት ይችላሉ!)*',
+    inviteEarn: '🎉 ይጋብዙ እና 5% ያግቡ!\n\nልዩ ሊንክዎን ለጓደኞችዎ ያጋሩ። እነሱ ሲያሸንፉ የሽልማታቸውን 5% ያገኛሉ!\n\n🔗 የእርስዎ ሊንክ፦\n{{link}}\n\n(ገቢዎን 1,000 ብር ሲደርስ ማውጣት ይችላሉ!)',
     shareGroup: '📢 ለቡድን/ቻናል አጋራ',
     openGame: '🎮 ጨዋታውን ክፈት',
     shareText: 'በዮጋቢንጎ ይቀላለቁኝ እና ትልቅ ያሸንፉ! 🎰'
@@ -190,47 +190,32 @@ function getMainMenu(lang = 'en') {
 }
 
 async function showInvite(ctx) {
-  const lang = await getUserLanguage(ctx)
-  const telegramId = ctx.from?.id
-
-  let user = null
   try {
-    if (telegramId) user = await db('users').where({ telegram_id: telegramId }).first()
-  } catch (e) {
-    console.error('showInvite user lookup error:', e)
-  }
+    console.log('[INVITE] Generating link for:', ctx.from.id)
+    const lang = await getUserLanguage(ctx)
+    
+    // Simplest fallback strategy for username
+    const username = ctx.from?.username || null
+    const telegramId = ctx.from?.id
+    let startPayload = ''
 
-  const username = (user && user.username) || ctx.from?.username || null
-  const referralRef = (user && user.referral_code) || (username ? `@${username}` : String(telegramId || ''))
-
-  // Build the Telegram deep link friends will use to start the bot with this referral.
-  let startPayload = null
-  if (username) startPayload = `u_${username}`
-  else if (telegramId) startPayload = `i_${telegramId}`
-  if (!startPayload) startPayload = getReferralStartPayload(referralRef)
-
-  let botUsername = process.env.BOT_USERNAME || process.env.TELEGRAM_BOT_USERNAME
-  if (!botUsername) {
-    try {
-      const me = await ctx.telegram.getMe()
-      botUsername = me?.username
-    } catch (e) {
-      console.error('showInvite getMe error:', e)
+    if (username) {
+      startPayload = `u_${username}`
+    } else {
+      startPayload = `i_${telegramId}`
     }
-  }
-  if (!botUsername) botUsername = 'GoBingoBot'
 
-  const link = startPayload
-    ? `https://t.me/${botUsername}?start=${encodeURIComponent(startPayload)}`
-    : referralRef
+    // Hardcode your bot's exact username here to prevent network hanging errors
+    const botUsername = 'GoBingoKedirobot' 
+    const refLink = `https://t.me/${botUsername}?start=${encodeURIComponent(startPayload)}`
 
-  const shareText = botText(lang, 'shareText')
-  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(shareText)}`
-  const frontendUrl = process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL
+    const shareText = botText(lang, 'shareText')
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(shareText)}`
+    const frontendUrl = process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL
 
-  try {
-    return await ctx.reply(botText(lang, 'inviteEarn', { link }), {
-      parse_mode: 'Markdown',
+    // Send without parse_mode to prevent Markdown crashes
+    await ctx.reply(botText(lang, 'inviteEarn', { link: refLink }), {
+      disable_web_page_preview: true,
       reply_markup: {
         inline_keyboard: [
           [{ text: botText(lang, 'shareGroup'), url: shareUrl }],
@@ -238,9 +223,10 @@ async function showInvite(ctx) {
         ]
       }
     })
-  } catch (e) {
-    console.error('showInvite reply error:', e)
-    return ctx.reply(`✅ Your invite link: ${link}`).catch(() => {})
+    console.log('[INVITE] Link sent successfully')
+  } catch (err) {
+    console.error('[INVITE] Crash:', err)
+    return ctx.reply(`❌ Error: ${err.message}`).catch(() => {})
   }
 }
 
