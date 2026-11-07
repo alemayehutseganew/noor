@@ -183,21 +183,32 @@ function getMainMenu(lang = 'en') {
 
 async function showInvite(ctx) {
   try {
+    console.log('[INVITE DEBUG] Fetching user for telegram_id:', ctx.from.id)
     const lang = await getUserLanguage(ctx)
     const user = await db('users').where({ telegram_id: ctx.from.id }).first()
-    if (!user) return ctx.reply(botText(lang, 'userNotFound'))
-
-    const refId = user.username ? `@${user.username}` : String(user.telegram_id)
-    const startPayload = getReferralStartPayload(refId)
-    
-    if (!startPayload) {
-      // Fallback if username is too short or invalid
-      return ctx.reply('❌ Could not generate a valid referral link. Please set a Telegram username with at least 5 characters.')
+    if (!user) {
+      console.log('[INVITE DEBUG] User not found in DB.')
+      return ctx.reply(botText(lang, 'userNotFound'))
     }
 
-    const botUsername = ctx.botInfo.username
+    let refId = user.username ? `@${user.username}` : String(user.telegram_id)
+    let startPayload = getReferralStartPayload(refId)
+
+    if (!startPayload) {
+      console.log('[INVITE DEBUG] Username failed regex, falling back to telegram_id.')
+      refId = String(user.telegram_id)
+      startPayload = getReferralStartPayload(refId)
+    }
+
+    if (!startPayload) {
+      console.log('[INVITE DEBUG] Failed to generate start payload entirely.')
+      return ctx.reply('❌ Error generating link. Please contact support.')
+    }
+
+    const botUsername = ctx.botInfo?.username || process.env.BOT_USERNAME || 'YogaBingoBot'
+    console.log('[INVITE DEBUG] Bot Username resolved to:', botUsername)
     const refLink = `https://t.me/${botUsername}?start=${encodeURIComponent(startPayload)}`
-    
+
     const message = botText(lang, 'inviteEarn', { link: refLink })
 
     return ctx.replyWithMarkdown(message, {
@@ -215,8 +226,8 @@ async function showInvite(ctx) {
       },
     })
   } catch (err) {
-    console.error('Invite command error:', err)
-    return ctx.reply('❌ Could not generate your invite link. Please try again later.')
+    console.error('[INVITE DEBUG] Invite command error:', err)
+    return ctx.reply(`❌ Could not generate your invite link. Error: ${err.message}`)
   }
 }
 
