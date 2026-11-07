@@ -11,15 +11,33 @@ const SocketService = {
   connect: (token = localStorage.getItem('token')) => {
     if (!socket) {
       socket = io(socketUrl, {
+        autoConnect: false,
         transports: ['polling', 'websocket'],
         withCredentials: true,
-        auth: { token },
+        auth: { token: token || null },
       })
-    } else if (socket.auth?.token !== token) {
+      socket.on('connect_error', (error) => {
+        if (error.message === 'Unauthorized') {
+          socket.disconnect()
+          if (localStorage.getItem('token') === socket.auth?.token) {
+            localStorage.removeItem('token')
+          }
+        }
+      })
+    }
+
+    if (!token) {
+      socket.auth = { token: null }
+      socket.disconnect()
+      return socket
+    }
+
+    if (socket.auth?.token !== token) {
       socket.auth = { token }
       socket.disconnect()
-      socket.connect()
     }
+
+    if (!socket.connected) socket.connect()
     return socket
   },
   get: () => socket,

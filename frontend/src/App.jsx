@@ -26,6 +26,9 @@ export default function App() {
     tg?.ready()
     tg?.expand()
 
+    const existingToken = localStorage.getItem('token')
+    if (existingToken) SocketService.connect(existingToken)
+
     const initData = tg?.initData || ''
     if (!initData) return
     const referralRef = new URLSearchParams(window.location.search).get('ref') || ''
