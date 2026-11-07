@@ -103,7 +103,10 @@ bot.use((ctx, next) => {
     delete userStates[ctx.from.id]
   }
   return next()
-})const { Telegraf, Markup } = require('telegraf')
+})
+
+if (false) {
+const { Telegraf, Markup } = require('telegraf')
 const db = require('../db')
 const { parseTelebirrSMS, creditVerifiedDeposit } = require('../services/paymentService')
 const { getT } = require('./translations')
@@ -513,6 +516,7 @@ const handleUpdate = async (req, res) => {
 }
 
 module.exports = { bot, getMainMenu, handleUpdate }
+}
 
 
 const DEFAULT_FRONTEND_URL = 'https://noor-one-beta.vercel.app/'
