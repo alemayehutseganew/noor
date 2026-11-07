@@ -190,8 +190,58 @@ function getMainMenu(lang = 'en') {
 }
 
 async function showInvite(ctx) {
-  console.log('[TEST] /invite command or button was clicked!')
-  return ctx.reply('✅ The /invite command is working! We will add the link back next.')
+  const lang = await getUserLanguage(ctx)
+  const telegramId = ctx.from?.id
+
+  let user = null
+  try {
+    if (telegramId) user = await db('users').where({ telegram_id: telegramId }).first()
+  } catch (e) {
+    console.error('showInvite user lookup error:', e)
+  }
+
+  const username = (user && user.username) || ctx.from?.username || null
+  const referralRef = (user && user.referral_code) || (username ? `@${username}` : String(telegramId || ''))
+
+  // Build the Telegram deep link friends will use to start the bot with this referral.
+  let startPayload = null
+  if (username) startPayload = `u_${username}`
+  else if (telegramId) startPayload = `i_${telegramId}`
+  if (!startPayload) startPayload = getReferralStartPayload(referralRef)
+
+  let botUsername = process.env.BOT_USERNAME || process.env.TELEGRAM_BOT_USERNAME
+  if (!botUsername) {
+    try {
+      const me = await ctx.telegram.getMe()
+      botUsername = me?.username
+    } catch (e) {
+      console.error('showInvite getMe error:', e)
+    }
+  }
+  if (!botUsername) botUsername = 'GoBingoBot'
+
+  const link = startPayload
+    ? `https://t.me/${botUsername}?start=${encodeURIComponent(startPayload)}`
+    : referralRef
+
+  const shareText = botText(lang, 'shareText')
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(shareText)}`
+  const frontendUrl = process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL
+
+  try {
+    return await ctx.reply(botText(lang, 'inviteEarn', { link }), {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: botText(lang, 'shareGroup'), url: shareUrl }],
+          [{ text: botText(lang, 'openGame'), web_app: { url: frontendUrl } }]
+        ]
+      }
+    })
+  } catch (e) {
+    console.error('showInvite reply error:', e)
+    return ctx.reply(`✅ Your invite link: ${link}`).catch(() => {})
+  }
 }
 
 bot.start(async (ctx) => {
@@ -213,9 +263,8 @@ bot.start(async (ctx) => {
 })
 
 bot.action('show_invite', async (ctx) => {
-  console.log('[TEST] Invite button clicked!')
-  await ctx.answerCbQuery()
-  return ctx.reply('✅ The Invite Button is working! We will add the link back next.')
+  await ctx.answerCbQuery().catch(() => {})
+  return showInvite(ctx)
 })
 
 bot.action('lang_en', async (ctx) => {
