@@ -540,8 +540,4 @@ bot.on('text', async (ctx) => {
   }
 })
 
-bot.on('message', (ctx) => {
-  console.log(`[BOT TRACE] Unhandled message received: ${ctx.message.text || 'non-text message'}`)
-})
-
 module.exports = { bot, getMainMenu }
