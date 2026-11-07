@@ -294,7 +294,10 @@ bot.command('menu', async (ctx) => {
   ctx.reply(botText(lang, 'mainMenu'), getMainMenu(lang)).catch(() => {})
 })
 
-bot.command(['invite', 'refer'], showInvite)
+bot.command(['invite', 'refer'], async (ctx) => {
+  delete userStates[ctx.from.id]
+  await showInvite(ctx)
+})
 
 bot.command('play', async (ctx) => {
   const lang = await getUserLanguage(ctx)
@@ -383,11 +386,44 @@ bot.action('menu_help', async (ctx) => {
   ctx.reply(botText(lang, 'helpMessage')).catch(() => {})
 })
 
+bot.on('contact', async (ctx) => {
+  const lang = await getUserLanguage(ctx)
+  try {
+    const contact = ctx.message.contact
+    const telegramId = ctx.from.id
+    const phoneNumber = contact.phone_number
+
+    const updated = await db('users')
+      .where({ telegram_id: telegramId })
+      .update({ phone_number: phoneNumber })
+
+    if (updated) {
+      await ctx.reply(
+        botText(lang, 'phoneSaved', { phone: phoneNumber }),
+        Markup.removeKeyboard()
+      )
+    } else {
+      await db('users').insert({
+        telegram_id: telegramId,
+        first_name: ctx.from.first_name || botText(lang, 'player'),
+        phone_number: phoneNumber,
+        wallet_balance: 0
+      })
+      await ctx.reply(
+        botText(lang, 'registrationComplete', { phone: phoneNumber }),
+        Markup.removeKeyboard()
+      )
+    }
+  } catch (err) {
+    console.error('Contact save error:', err)
+    await ctx.reply(botText(lang, 'contactFailed'))
+  }
+})
+
 bot.on('text', async (ctx) => {
   try {
     const text = ctx.message.text
     if (text && text.startsWith('/')) {
-      delete userStates[ctx.from.id]
       return
     }
 
@@ -472,40 +508,6 @@ bot.on('text', async (ctx) => {
     console.error('Text Handler Error:', err)
     const lang = await getUserLanguage(ctx)
     ctx.reply(botText(lang, 'requestFailed')).catch(() => {})
-  }
-})
-
-bot.on('contact', async (ctx) => {
-  const lang = await getUserLanguage(ctx)
-  try {
-    const contact = ctx.message.contact
-    const telegramId = ctx.from.id
-    const phoneNumber = contact.phone_number
-
-    const updated = await db('users')
-      .where({ telegram_id: telegramId })
-      .update({ phone_number: phoneNumber })
-
-    if (updated) {
-      await ctx.reply(
-        botText(lang, 'phoneSaved', { phone: phoneNumber }),
-        Markup.removeKeyboard()
-      )
-    } else {
-      await db('users').insert({
-        telegram_id: telegramId,
-        first_name: ctx.from.first_name || botText(lang, 'player'),
-        phone_number: phoneNumber,
-        wallet_balance: 0
-      })
-      await ctx.reply(
-        botText(lang, 'registrationComplete', { phone: phoneNumber }),
-        Markup.removeKeyboard()
-      )
-    }
-  } catch (err) {
-    console.error('Contact save error:', err)
-    await ctx.reply(botText(lang, 'contactFailed'))
   }
 })
 
