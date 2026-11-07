@@ -47,10 +47,6 @@ const botTranslations = {
     phoneSaved: '✅ Phone number saved: {{phone}}\n\nYou can now use the bot normally.',
     registrationComplete: '✅ Registration complete! Phone number: {{phone}}',
     contactFailed: '❌ Failed to save your contact. Please try again.',
-    inviteEarn: '🎉 *Invite & Earn 5%!*\n\nShare your unique link with friends. When they win a game, you get 5% of their prize!\n\n🔗 Your Link:\n`{{link}}`\n\n*(You can withdraw your earnings once you reach 1,000 ETB!)*',
-    shareGroup: '📢 Share to Group/Channel',
-    openGame: '🎮 Open Game',
-    shareText: 'Join me on GoBingo and win big! 🎰'
   },
   am: {
     selectLanguage: 'እባክዎ ቋንቋ ይምረጡ:',
@@ -90,10 +86,6 @@ const botTranslations = {
     phoneSaved: '✅ ስልክ ቁጥሩ ተቀምጧል፦ {{phone}}\n\nአሁን ቦቱን በመደበኛው መንገድ መጠቀም ይችላሉ።',
     registrationComplete: '✅ ምዝገባው ተጠናቋል! ስልክ ቁጥር፦ {{phone}}',
     contactFailed: '❌ የእውቂያ መረጃዎን ማስቀመጥ አልተሳካም። እባክዎ እንደገና ይሞክሩ።',
-    inviteEarn: '🎉 *ይጋብዙ እና 5% ያግቡ!*\n\nልዩ ሊንክዎን ለጓደኞችዎ ያጋሩ። እነሱ ሲያሸንፉ የሽልማታቸውን 5% ያገኛሉ!\n\n🔗 የእርስዎ ሊንክ፦\n`{{link}}`\n\n*(ገቢዎን 1,000 ብር ሲደርስ ማውጣት ይችላሉ!)*',
-    shareGroup: '📢 ለቡድን/ቻናል አጋራ',
-    openGame: '🎮 ጨዋታውን ክፈት',
-    shareText: 'በዮጋቢንጎ ይቀላለቁኝ እና ትልቅ ያሸንፉ! 🎰'
   },
 }
 
@@ -108,31 +100,6 @@ bot.use((ctx, next) => {
 })
 
 const DEFAULT_FRONTEND_URL = 'https://noor-one-beta.vercel.app/'
-
-function getFrontendUrl(referralRef) {
-  const url = new URL(process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL)
-  if (referralRef) url.searchParams.set('ref', referralRef)
-  return url.toString()
-}
-
-function getReferralRefFromStartPayload(payload) {
-  if (!payload) return null
-  if (payload.startsWith('u_')) return `@${payload.slice(2)}`
-  if (payload.startsWith('i_')) return payload.slice(2)
-  if (payload.startsWith('@') || /^\d+$/.test(payload)) return payload
-  if (payload.startsWith('REF_')) return payload
-  return null
-}
-
-function getReferralStartPayload(referralRef) {
-  if (typeof referralRef !== 'string') return null
-  const value = referralRef.trim()
-  if (value.startsWith('@') && /^[A-Za-z0-9_]{5,32}$/.test(value.slice(1))) {
-    return `u_${value.slice(1)}`
-  }
-  if (/^\d+$/.test(value)) return `i_${value}`
-  return null
-}
 
 function botText(lang, key, values = {}) {
   return Object.entries(values).reduce(
@@ -153,7 +120,6 @@ try {
   bot.telegram.setMyCommands([
     { command: 'start', description: 'Start the bot and open the game' },
     { command: 'balance', description: 'Check your wallet balance' },
-    { command: 'invite', description: 'Get your referral link to earn 5%' },
     { command: 'deposit', description: 'Deposit ETB to play' },
     { command: 'withdraw', description: 'Withdraw your winnings' },
     { command: 'menu', description: 'Open the game menu' },
@@ -189,100 +155,16 @@ function getMainMenu(lang = 'en') {
   }
 }
 
-async function showInvite(ctx) {
-  try {
-    console.log('[INVITE DEBUG] Fetching user for telegram_id:', ctx.from.id)
-    const lang = await getUserLanguage(ctx)
-    const user = await db('users').where({ telegram_id: ctx.from.id }).first()
-    if (!user) {
-      console.log('[INVITE DEBUG] User not found in DB.')
-      return ctx.reply(botText(lang, 'userNotFound'))
-    }
-
-    let refId = user.username ? `@${user.username}` : String(user.telegram_id)
-    let startPayload = getReferralStartPayload(refId)
-
-    if (!startPayload) {
-      console.log('[INVITE DEBUG] Username failed regex, falling back to telegram_id.')
-      refId = String(user.telegram_id)
-      startPayload = getReferralStartPayload(refId)
-    }
-
-    if (!startPayload) {
-      console.log('[INVITE DEBUG] Failed to generate start payload entirely.')
-      return ctx.reply('❌ Error generating link. Please contact support.')
-    }
-
-    const botUsername = ctx.botInfo?.username || process.env.BOT_USERNAME || 'GoBingoBot'
-    console.log('[INVITE DEBUG] Bot Username resolved to:', botUsername)
-    const refLink = `https://t.me/${botUsername}?start=${encodeURIComponent(startPayload)}`
-
-    const message = botText(lang, 'inviteEarn', { link: refLink })
-
-    return ctx.replyWithMarkdown(message, {
-      reply_markup: {
-        inline_keyboard: [
-          [{
-            text: botText(lang, 'shareGroup'),
-            url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(botText(lang, 'shareText'))}`,
-          }],
-          [{
-            text: botText(lang, 'openGame'),
-            web_app: { url: process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL },
-          }],
-        ],
-      },
-    })
-  } catch (err) {
-    console.error('[INVITE DEBUG] Invite command error:', err)
-    return ctx.reply(`❌ Could not generate your invite link. Error: ${err.message}`)
-  }
-}
-
 bot.start(async (ctx) => {
   const lang = await getUserLanguage(ctx)
-  const referralRef = getReferralRefFromStartPayload(ctx.startPayload)
   ctx.reply(botText(lang, 'selectLanguage'), {
     reply_markup: {
       inline_keyboard: [
         [{ text: botText(lang, 'english'), callback_data: 'lang_en' }, { text: botText(lang, 'amharic'), callback_data: 'lang_am' }],
-        [{ text: '🎮 Open Game', web_app: { url: getFrontendUrl(referralRef) } }],
-        [{ text: '👥 Invite Friends & Earn 5%', callback_data: 'show_invite' }],
+        [{ text: '🎮 Open Game', web_app: { url: process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL } }],
       ]
     }
   }).catch(e => console.error('Start error:', e))
-})
-
-bot.action('show_invite', async (ctx) => {
-  await ctx.answerCbQuery()
-  await showInvite(ctx)
-})
-
-bot.on('inline_query', async (ctx) => {
-  const query = ctx.inlineQuery.query.trim().replace(/^start=/, '')
-  const referralRef = query.startsWith('@') || /^\d+$/.test(query) ? query : null
-  const startPayload = getReferralStartPayload(referralRef)
-  
-  if (!startPayload) {
-    return ctx.answerInlineQuery([], { cache_time: 0, is_personal: true })
-  }
-
-  const botUsername = ctx.botInfo.username
-  await ctx.answerInlineQuery([{
-    type: 'article',
-    id: 'Gobingo-referral',
-    title: 'Play GoBingo!',
-    description: 'Tap to join the game and play.',
-    input_message_content: {
-      message_text: '🎰 Join me on GoBingo and play!',
-    },
-    reply_markup: {
-      inline_keyboard: [[{
-        text: '🎮 Play Now',
-        url: `https://t.me/${botUsername}?start=${encodeURIComponent(startPayload)}`,
-      }]],
-    },
-  }], { cache_time: 0, is_personal: true })
 })
 
 bot.action('lang_en', async (ctx) => {
@@ -300,11 +182,6 @@ bot.action('lang_am', async (ctx) => {
 bot.command('menu', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   ctx.reply(botText(lang, 'mainMenu'), getMainMenu(lang)).catch(() => {})
-})
-
-bot.command(['invite', 'refer'], async (ctx) => {
-  delete userStates[ctx.from.id]
-  await showInvite(ctx)
 })
 
 bot.command('play', async (ctx) => {
