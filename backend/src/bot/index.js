@@ -385,6 +385,12 @@ bot.action('menu_help', async (ctx) => {
 
 bot.on('text', async (ctx) => {
   try {
+    const text = ctx.message.text
+    if (text && text.startsWith('/')) {
+      delete userStates[ctx.from.id]
+      return
+    }
+
     const lang = await getUserLanguage(ctx)
     const state = userStates[ctx.from.id]
     if (!state) return
