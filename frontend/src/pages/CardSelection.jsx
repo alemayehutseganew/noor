@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { fetchApi } from '../services/api';
+import SocketService from '../services/socket';
 import { unlockAudio } from '../utils/bingoSounds';
 
 const formatTime = (seconds) => {
@@ -48,6 +49,32 @@ export default function CardSelection({
     };
     fetchTakenCards();
   }, [stake]);
+
+  useEffect(() => {
+    if (!roomId || onCardUpdated) return undefined;
+
+    const socket = SocketService.get();
+    if (!socket) return undefined;
+
+    const redirectToGame = () => {
+      navigate(`/game?roomId=${encodeURIComponent(roomId)}&stake=${encodeURIComponent(stake)}`);
+    };
+    const handleRoomUpdate = (data) => {
+      if (String(data?.status).toLowerCase() === 'playing') {
+        redirectToGame();
+      }
+    };
+
+    socket.on('game_started', redirectToGame);
+    socket.on('game_in_progress', redirectToGame);
+    socket.on('room_update', handleRoomUpdate);
+
+    return () => {
+      socket.off('game_started', redirectToGame);
+      socket.off('game_in_progress', redirectToGame);
+      socket.off('room_update', handleRoomUpdate);
+    };
+  }, [navigate, onCardUpdated, roomId, stake]);
 
   const handleCardSelect = async (cardNumber) => {
     unlockAudio();
@@ -100,18 +127,19 @@ export default function CardSelection({
         navigate(`/game?roomId=${data.roomId}&stake=${stake}`);
       }
     } catch (err) {
-      if (
-        roomId
-        && /game has already started|game in progress|cannot change card/i.test(err.message)
-      ) {
+      const errorText = String(err.message || '');
+      const errorMessage = errorText.toLowerCase();
+      if (roomId && ['started', 'in progress', 'playing', 'cannot join'].some((phrase) => (
+        errorMessage.includes(phrase)
+      ))) {
         navigate(`/game?roomId=${encodeURIComponent(roomId)}&stake=${encodeURIComponent(stake)}`);
         return;
       }
 
       setSelectedCard(previousCard);
       setSelectedMatrix(previousMatrix);
-      setError(err.message);
-      if (err.message.toLowerCase().includes('taken')) {
+      setError(errorText || t('joinFailed'));
+      if (errorMessage.includes('taken')) {
         setTakenCards((prev) => [...prev, cardNumber]);
       }
     } finally {
