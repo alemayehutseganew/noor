@@ -12,6 +12,7 @@ const formatTime = (seconds) => {
 
 export default function CardSelection({
   countdown = null,
+  playersCount = 0,
   isGameStarted = false,
   cardData = null,
   onCardUpdated,
@@ -31,6 +32,7 @@ export default function CardSelection({
   const currentSelectedMatrix = selectedCard === null ? cardData?.matrix || null : selectedMatrix;
   const selectionLocked = isGameStarted
     || (countdown !== null && countdown !== undefined && countdown <= 0);
+  const hasCountdown = countdown !== null && countdown !== undefined;
 
   useEffect(() => {
     const fetchTakenCards = async () => {
@@ -109,11 +111,9 @@ export default function CardSelection({
     }
   };
 
-  const hasCountdown = countdown !== null && countdown !== undefined;
-
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-[#0f172a] text-white">
-      <div className="flex-1 overflow-y-auto p-4 pb-48">
+      <div className="flex-1 overflow-y-auto p-4 pb-36">
         <div className="mx-auto max-w-4xl">
           <div className="mb-5 flex items-center justify-between gap-3">
             {!roomId ? (
@@ -165,23 +165,23 @@ export default function CardSelection({
         </div>
       </div>
 
-      <div className="fixed bottom-0 z-30 w-full border-t border-gray-700 bg-[#0f172a] p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:p-4">
-        <div className="mx-auto flex max-w-4xl gap-3 sm:gap-4">
-          <div className="min-w-0 flex-1 rounded-xl bg-white p-2 text-gray-900">
-            <div className="mb-1 truncate text-center text-xs font-bold sm:text-sm">
+      <div className="fixed bottom-0 z-30 h-32 w-full border-t border-gray-700 bg-[#0f172a] p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
+        <div className="mx-auto flex h-full max-w-4xl gap-2">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-xl bg-white p-1.5 text-gray-900">
+            <div className="mb-1 shrink-0 truncate text-center text-[10px] font-bold leading-3 sm:text-xs">
               {currentSelectedCard ? t('cardNo', { number: currentSelectedCard }) : t('selectCard')}
             </div>
             {currentSelectedMatrix ? (
-              <div className="grid grid-cols-5 gap-0.5">
+              <div className="grid min-h-0 flex-1 grid-cols-5 grid-rows-6 gap-px">
                 {['B', 'I', 'N', 'G', 'O'].map((letter) => (
-                  <div key={letter} className="rounded bg-blue-700 py-0.5 text-center text-[9px] font-bold text-white sm:text-xs">
+                  <div key={letter} className="flex min-h-0 items-center justify-center rounded bg-blue-700 text-[8px] font-bold leading-none text-white sm:text-[10px]">
                     {letter}
                   </div>
                 ))}
                 {currentSelectedMatrix.flat().map((number, index) => (
                   <div
                     key={index}
-                    className={`flex aspect-square items-center justify-center rounded text-[9px] font-bold sm:text-xs ${
+                    className={`flex min-h-0 items-center justify-center rounded text-[8px] font-bold leading-none sm:text-[10px] ${
                       index === 12 || number === 'FREE' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100'
                     }`}
                   >
@@ -190,19 +190,31 @@ export default function CardSelection({
                 ))}
               </div>
             ) : (
-              <div className="flex min-h-20 items-center justify-center text-center text-xs text-gray-500">
+              <div className="flex min-h-0 flex-1 items-center justify-center text-center text-[10px] text-gray-500">
                 {roomId ? t('loadingCard') : t('selectCard')}
               </div>
             )}
           </div>
 
-          <div className="flex flex-1 flex-col items-center justify-center rounded-xl bg-blue-900/50 p-2 text-center">
-            <span className="text-xs font-semibold text-blue-100">
-              {hasCountdown ? t('countdown') : t('pleaseWait')}
-            </span>
-            <span className="mt-1 text-2xl font-black tabular-nums sm:text-4xl">
-              {hasCountdown ? formatTime(Math.max(0, Number(countdown))) : '--:--'}
-            </span>
+          <div className="flex min-w-0 flex-1 flex-col items-center justify-center rounded-xl bg-blue-900/50 p-2 text-center">
+            {playersCount < 2 ? (
+              <span className="animate-pulse text-xs font-semibold leading-tight text-blue-100 sm:text-sm">
+                {t('waitingPlayers')}
+              </span>
+            ) : hasCountdown ? (
+              <>
+                <span className="text-[10px] font-semibold leading-tight text-blue-100 sm:text-xs">
+                  {t('countdown')}
+                </span>
+                <span className="mt-1 text-2xl font-black tabular-nums sm:text-4xl">
+                  {formatTime(Math.max(0, Number(countdown)))}
+                </span>
+              </>
+            ) : (
+              <span className="text-xs font-semibold text-blue-100 sm:text-sm">
+                {t('getReady')}
+              </span>
+            )}
             {loading && <span className="mt-1 text-[10px] text-blue-100">{t('loadingCard')}</span>}
           </div>
         </div>

@@ -326,6 +326,7 @@ const GameScreen = () => {
     return (
       <CardSelection
         countdown={countdown}
+        playersCount={playersCount}
         isGameStarted={gameStarted || (countdown !== null && countdown <= 0)}
         cardData={cardsData[0] || null}
         onCardUpdated={(updatedCard) => {
