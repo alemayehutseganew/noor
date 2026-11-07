@@ -284,7 +284,7 @@ bot.command('menu', async (ctx) => {
   ctx.reply(botText(lang, 'mainMenu'), getMainMenu(lang)).catch(() => {})
 })
 
-bot.command(['invite', 'refer'], async (ctx) => {
+bot.command(['invite', 'invite'], async (ctx) => {
   delete userStates[ctx.from.id]
   await showInvite(ctx)
 })
