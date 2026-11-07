@@ -100,6 +100,14 @@ export default function CardSelection({
         navigate(`/game?roomId=${data.roomId}&stake=${stake}`);
       }
     } catch (err) {
+      if (
+        roomId
+        && /game has already started|game in progress|cannot change card/i.test(err.message)
+      ) {
+        navigate(`/game?roomId=${encodeURIComponent(roomId)}&stake=${encodeURIComponent(stake)}`);
+        return;
+      }
+
       setSelectedCard(previousCard);
       setSelectedMatrix(previousMatrix);
       setError(err.message);
@@ -136,7 +144,7 @@ export default function CardSelection({
             </div>
           )}
 
-          <div className="grid grid-cols-6 gap-2 sm:grid-cols-8 md:grid-cols-10 md:gap-3">
+          <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-8 md:grid-cols-10 md:gap-2">
             {Array.from({ length: 400 }, (_, i) => i + 1).map((cardNumber) => {
               const isSelected = currentSelectedCard === cardNumber;
               const isTaken = takenCards.includes(cardNumber) && !isSelected;
@@ -149,12 +157,12 @@ export default function CardSelection({
                   disabled={isDisabled}
                   aria-pressed={isSelected}
                   onClick={() => handleCardSelect(cardNumber)}
-                  className={`relative flex items-center justify-center rounded-lg border-b-4 py-2 text-sm font-bold transition-all ${
+                  className={`relative flex items-center justify-center rounded-md border px-1 py-1 text-xs font-bold transition-all duration-100 touch-manipulation ${
                     isSelected
-                      ? 'border-blue-700 bg-blue-500 text-white'
+                      ? 'border-blue-700 border-b-4 bg-blue-500 text-white shadow-[0_3px_0_rgb(29,78,216)] active:translate-y-1 active:shadow-none'
                       : isTaken || selectionLocked || loading || (roomId && !cardData)
-                        ? 'cursor-not-allowed border-gray-900 bg-gray-800 text-gray-600 opacity-60'
-                        : 'border-gray-300 bg-white text-black shadow-md hover:-translate-y-0.5 hover:shadow-lg active:translate-y-1'
+                        ? 'cursor-not-allowed border-gray-900 border-b-4 bg-gray-800 text-gray-600 opacity-60'
+                        : 'border-gray-300 border-b-4 bg-white text-black shadow-[0_3px_0_rgb(156,163,175)] hover:-translate-y-0.5 hover:shadow-[0_4px_0_rgb(156,163,175)] active:translate-y-1 active:shadow-none'
                   }`}
                 >
                   {cardNumber}
