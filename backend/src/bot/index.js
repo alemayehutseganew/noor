@@ -101,11 +101,7 @@ const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN)
 
 // GLOBAL MIDDLEWARE: Clear state on any command
 bot.use((ctx, next) => {
-  if (ctx.message) {
-    console.log(`[BOT TRACE] Message received: ${ctx.message.text || 'non-text message'}`)
-  }
   if (ctx.message?.text?.startsWith('/') && ctx.from?.id !== undefined) {
-    console.log(`[TRACE] Middleware caught command: ${ctx.message.text}`)
     delete userStates[ctx.from.id]
   }
   return next()
@@ -143,15 +139,6 @@ function botText(lang, key, values = {}) {
     (text, [name, value]) => text.replaceAll(`{{${name}}}`, () => String(value)),
     botTranslations[lang]?.[key] || botTranslations.en[key]
   )
-}
-
-async function resolveBotUsername(ctx) {
-  if (ctx.botInfo?.username) return ctx.botInfo.username
-
-  const configuredUsername = process.env.BOT_USERNAME?.trim().replace(/^@/, '')
-  if (configuredUsername) return configuredUsername
-
-  return (await bot.telegram.getMe()).username
 }
 
 bot.catch((err, ctx) => {
@@ -212,12 +199,11 @@ async function showInvite(ctx) {
       return ctx.reply(botText(lang, 'userNotFound'))
     }
 
-    const username = ctx.from?.username || user.username
-    let refId = username ? `@${username}` : String(user.telegram_id)
+    let refId = user.username ? `@${user.username}` : String(user.telegram_id)
     let startPayload = getReferralStartPayload(refId)
 
     if (!startPayload) {
-      console.log('[INVITE DEBUG] Username is invalid, falling back to telegram_id.')
+      console.log('[INVITE DEBUG] Username failed regex, falling back to telegram_id.')
       refId = String(user.telegram_id)
       startPayload = getReferralStartPayload(refId)
     }
@@ -227,9 +213,7 @@ async function showInvite(ctx) {
       return ctx.reply('❌ Error generating link. Please contact support.')
     }
 
-    const botUsername = await resolveBotUsername(ctx)
-    if (!botUsername) throw new Error('Telegram bot username is unavailable')
-    console.log('[INVITE DEBUG] Bot Username resolved to:', botUsername)
+    const botUsername = ctx.botInfo?.username || (await ctx.telegram.getMe()).username
     const refLink = `https://t.me/${botUsername}?start=${encodeURIComponent(startPayload)}`
 
     const message = botText(lang, 'inviteEarn', { link: refLink })
@@ -249,8 +233,8 @@ async function showInvite(ctx) {
       },
     })
   } catch (err) {
-    console.error('[INVITE CRASH]', err)
-    return ctx.reply(`❌ Error: ${err.message}`)
+    console.error('[INVITE DEBUG] Invite command error:', err)
+    return ctx.reply(`❌ Could not generate your invite link. Error: ${err.message}`)
   }
 }
 
@@ -269,8 +253,13 @@ bot.start(async (ctx) => {
 })
 
 bot.action('show_invite', async (ctx) => {
-  await ctx.answerCbQuery()
-  await showInvite(ctx)
+  try {
+    await ctx.answerCbQuery()
+    await showInvite(ctx)
+  } catch (err) {
+    console.error('[INVITE BUTTON CRASH]', err)
+    await ctx.answerCbQuery('Error generating link. Check logs.')
+  }
 })
 
 bot.on('inline_query', async (ctx) => {
@@ -282,7 +271,7 @@ bot.on('inline_query', async (ctx) => {
     return ctx.answerInlineQuery([], { cache_time: 0, is_personal: true })
   }
 
-  const botUsername = await resolveBotUsername(ctx)
+  const botUsername = ctx.botInfo.username
   await ctx.answerInlineQuery([{
     type: 'article',
     id: 'Gobingo-referral',
@@ -318,7 +307,6 @@ bot.command('menu', async (ctx) => {
 })
 
 bot.command(['invite', 'refer'], async (ctx) => {
-  console.log('[TRACE] /invite command fired!')
   delete userStates[ctx.from.id]
   await showInvite(ctx)
 })
@@ -446,13 +434,11 @@ bot.on('contact', async (ctx) => {
 
 // IMPORTANT: This MUST be the last handler in the file
 bot.on('text', async (ctx) => {
-  console.log(`[TRACE] Text handler caught message: ${ctx.message.text}`)
   try {
     const text = ctx.message.text
     
     // STRICT GUARD: Completely ignore anything starting with a slash
     if (text && text.startsWith('/')) {
-      console.log('[TRACE] Text handler caught a command. Returning early.')
       return
     }
 
