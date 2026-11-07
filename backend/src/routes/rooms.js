@@ -256,39 +256,62 @@ router.post('/:id/select-cards', userAuth, async (req, res) => {
   try {
     const roomId = req.params.id
     const { cardIds } = req.body || {}
-    if (!Array.isArray(cardIds)) {
+    if (!Array.isArray(cardIds) || cardIds.length === 0) {
       return res.status(400).json({ error: 'cardIds are required' })
     }
+
+    const selectedCardIds = cardIds.map(Number)
+    if (selectedCardIds.some((cardId) => !Number.isInteger(cardId) || cardId < 1 || cardId > 400)
+      || new Set(selectedCardIds).size !== selectedCardIds.length) {
+      return res.status(400).json({ error: 'Choose unique card IDs between 1 and 400.' })
+    }
+
     const userId = req.user.id
 
-    const user = await db('users').where({ id: userId }).first()
-    if (!user) return res.status(404).json({ error: 'User not found' })
+    const cards = await db.transaction(async (trx) => {
+      const room = await trx('game_rooms').where({ id: roomId }).forUpdate().first()
+      if (!room) throw new Error('ROOM_NOT_FOUND')
+      if (!['WAITING', 'COUNTDOWN'].includes(room.status)) throw new Error('ROOM_ALREADY_STARTED')
 
-    const room = await db('game_rooms').where({ id: roomId }).first()
-    if (!room) return res.status(404).json({ error: 'Room not found' })
-    if (!['WAITING', 'COUNTDOWN'].includes(room.status)) {
-      return res.status(409).json({ error: 'Game in progress. Please wait for the next round.' })
-    }
-    const participant = await db('room_participants').where({ room_id: roomId, user_id: user.id }).first()
-    if (!participant) return res.status(403).json({ error: 'Join the room before selecting cards.' })
+      const participant = await trx('room_participants')
+        .where({ room_id: roomId, user_id: userId })
+        .first()
+      if (!participant) throw new Error('NOT_ROOM_PARTICIPANT')
 
-    await db('room_card_selections').where({ room_id: roomId, user_id: user.id }).del()
+      const takenCards = await trx('room_card_selections')
+        .where({ room_id: roomId })
+        .whereNot('user_id', userId)
+        .whereIn('card_id', selectedCardIds)
+      if (takenCards.length > 0) throw new Error('CARD_ALREADY_TAKEN')
 
-    const rows = cardIds.map((cardId) => ({
-      room_id: roomId,
-      card_id: cardId,
-      user_id: user.id,
-      card: JSON.stringify(generateSingleCard()),
-      status: 'reserved',
-    }))
+      await trx('room_card_selections').where({ room_id: roomId, user_id: userId }).del()
 
-    if (rows.length) {
-      await db('room_card_selections').insert(rows)
-    }
+      const rows = selectedCardIds.map((cardId) => ({
+        room_id: roomId,
+        card_id: cardId,
+        user_id: userId,
+        card: JSON.stringify(generateCardFromNumber(cardId)),
+        status: 'reserved',
+      }))
+      const inserted = await trx('room_card_selections').insert(rows).returning('*')
 
-    return res.json({ success: true, count: rows.length })
+      return inserted.map((selection) => ({
+        id: selection.card_id,
+        matrix: typeof selection.card === 'string' ? JSON.parse(selection.card) : selection.card,
+      }))
+    })
+
+    return res.json({ success: true, cards })
   } catch (err) {
     console.error('select-cards error:', err)
+    if (err.message === 'ROOM_NOT_FOUND') return res.status(404).json({ error: 'Room not found' })
+    if (err.message === 'ROOM_ALREADY_STARTED') {
+      return res.status(409).json({ error: 'Game in progress. Please wait for the next round.' })
+    }
+    if (err.message === 'NOT_ROOM_PARTICIPANT') {
+      return res.status(403).json({ error: 'Join the room before selecting cards.' })
+    }
+    if (err.message === 'CARD_ALREADY_TAKEN') return res.status(409).json({ error: 'Card already taken' })
     return res.status(500).json({ error: 'server error' })
   }
 })

@@ -6,6 +6,7 @@ import { unlockAudio } from '../utils/bingoSounds';
 
 export default function CardSelection() {
   const [searchParams] = useSearchParams();
+  const roomId = searchParams.get('roomId');
   const stake = searchParams.get('stake') || '10';
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -37,19 +38,31 @@ export default function CardSelection() {
     setError('');
 
     try {
-      const res = await fetchApi('/rooms/join', {
+      const endpoint = roomId
+        ? `/rooms/${encodeURIComponent(roomId)}/select-cards`
+        : '/rooms/join';
+      const body = roomId
+        ? { cardIds: [cardNumber] }
+        : {
+            stake: Number(stake),
+            card_number: cardNumber,
+            userId: localStorage.getItem('dbUserId'),
+          };
+
+      const res = await fetchApi(endpoint, {
         method: 'POST',
-        body: JSON.stringify({
-          stake: Number(stake),
-          card_number: cardNumber,
-          userId: localStorage.getItem('dbUserId'),
-        }),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
         throw new Error(data.error || t('joinFailed'));
+      }
+
+      if (roomId) {
+        navigate(`/game?roomId=${encodeURIComponent(roomId)}&stake=${stake}`);
+        return;
       }
 
       if (data.status === 'spectator') {
@@ -77,7 +90,9 @@ export default function CardSelection() {
           >
             ← {t('back')}
           </button>
-          <h1 className="text-2xl font-bold">{t('selectCard')} ({stake} ETB)</h1>
+          <h1 className="text-2xl font-bold">
+            {roomId ? `Change Your Card (${stake} ETB)` : `${t('selectCard')} (${stake} ETB)`}
+          </h1>
           <div className="w-12"></div>
         </div>
 

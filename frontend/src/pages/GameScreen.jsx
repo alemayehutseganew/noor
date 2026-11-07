@@ -2,6 +2,7 @@ import { useEffect, useState, Fragment } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import SocketService from '../services/socket';
+import { fetchApi } from '../services/api';
 import { getMuteState, playBallCall, toggleMute } from '../utils/bingoSounds';
 
 const formatTime = (seconds) => {
@@ -51,6 +52,16 @@ const GameScreen = () => {
   useEffect(() => {
     if (!userId) return;
 
+    if (!isSpectator) {
+      fetchApi(`/rooms/${encodeURIComponent(roomId)}/my-cards`)
+        .then(async (response) => {
+          if (!response.ok) return
+          const data = await response.json()
+          if (Array.isArray(data.cards)) setCardsData(data.cards)
+        })
+        .catch((err) => console.error('Failed to sync player cards:', err))
+    }
+
     const handleJoin = () => {
       socket.emit('join_room', { roomId, userId, stake, spectator: isSpectator });
     };
@@ -69,7 +80,7 @@ const GameScreen = () => {
       setSpectatorNumbers(data.calledNumbers || []);
       setSpectatorBall(data.currentBall || null);
       if (Number.isFinite(Number(data.players))) setPlayerCount(Number(data.players));
-      if (!isSpectator) {
+      if (!isSpectator && ['PLAYING', 'CLAIMING'].includes(data.status)) {
         navigate(`/game?roomId=${encodeURIComponent(roomId)}&stake=${stake}&spectator=true`, { replace: true });
         return;
       }
@@ -356,6 +367,15 @@ const GameScreen = () => {
             <p className="mt-5 text-lg font-semibold text-blue-100 sm:text-xl">
               {t('getReady')}
             </p>
+            {!isSpectator && !gameStarted && (
+              <button
+                type="button"
+                onClick={() => navigate(`/select-cards?roomId=${encodeURIComponent(roomId)}&stake=${stake}`)}
+                className="mt-6 rounded-lg border border-white/60 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+              >
+                Change Card
+              </button>
+            )}
           </div>
         </div>
       )}
