@@ -101,7 +101,11 @@ const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN)
 
 // GLOBAL MIDDLEWARE: Clear state on any command
 bot.use((ctx, next) => {
+  if (ctx.message) {
+    console.log(`[BOT TRACE] Message received: ${ctx.message.text || 'non-text message'}`)
+  }
   if (ctx.message?.text?.startsWith('/') && ctx.from?.id !== undefined) {
+    console.log(`[TRACE] Middleware caught command: ${ctx.message.text}`)
     delete userStates[ctx.from.id]
   }
   return next()
@@ -234,8 +238,8 @@ async function showInvite(ctx) {
       },
     })
   } catch (err) {
-    console.error('[INVITE DEBUG] Invite command error:', err)
-    return ctx.reply(`❌ Could not generate your invite link. Error: ${err.message}`)
+    console.error('[INVITE CRASH]', err)
+    return ctx.reply(`❌ Error: ${err.message}`)
   }
 }
 
@@ -303,6 +307,7 @@ bot.command('menu', async (ctx) => {
 })
 
 bot.command(['invite', 'refer'], async (ctx) => {
+  console.log('[TRACE] /invite command fired!')
   delete userStates[ctx.from.id]
   await showInvite(ctx)
 })
@@ -430,11 +435,13 @@ bot.on('contact', async (ctx) => {
 
 // IMPORTANT: This MUST be the last handler in the file
 bot.on('text', async (ctx) => {
+  console.log(`[TRACE] Text handler caught message: ${ctx.message.text}`)
   try {
     const text = ctx.message.text
     
     // STRICT GUARD: Completely ignore anything starting with a slash
     if (text && text.startsWith('/')) {
+      console.log('[TRACE] Text handler caught a command. Returning early.')
       return
     }
 
@@ -520,6 +527,10 @@ bot.on('text', async (ctx) => {
     const lang = await getUserLanguage(ctx)
     ctx.reply(botText(lang, 'requestFailed')).catch(() => {})
   }
+})
+
+bot.on('message', (ctx) => {
+  console.log(`[BOT TRACE] Unhandled message received: ${ctx.message.text || 'non-text message'}`)
 })
 
 module.exports = { bot, getMainMenu }

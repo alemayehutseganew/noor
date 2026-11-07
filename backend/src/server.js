@@ -57,6 +57,10 @@ const { setupSocket } = require('./sockets/gameHandler')
 const { bot } = require('./bot/index')
 
 const app = express()
+app.use((req, res, next) => {
+  console.log(`[SERVER TRACE] Incoming request: ${req.method} ${req.url}`)
+  next()
+})
 
 // --- App hardening ---
 app.disable('x-powered-by')
@@ -90,7 +94,10 @@ const corsOptions = {
 app.use(cors(corsOptions))
 app.use(express.json({ limit: '1mb' }))
 
-app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => bot.handleUpdate(req.body, res))
+app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => {
+  console.log('[SERVER TRACE] Telegram update received')
+  return bot.handleUpdate(req.body, res)
+})
 
 // --- Health check ---
 app.get('/health', (req, res) => {
