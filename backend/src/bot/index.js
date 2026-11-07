@@ -98,6 +98,13 @@ const botTranslations = {
 }
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN)
+bot.use((ctx, next) => {
+  if (ctx.message?.text?.startsWith('/') && ctx.from?.id !== undefined) {
+    delete userStates[ctx.from.id]
+  }
+  return next()
+})
+
 const DEFAULT_FRONTEND_URL = 'https://ked-seven.vercel.app'
 
 function getFrontendUrl(referralRef) {
