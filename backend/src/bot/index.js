@@ -190,53 +190,8 @@ function getMainMenu(lang = 'en') {
 }
 
 async function showInvite(ctx) {
-  try {
-    console.log('[INVITE DEBUG] Fetching user for telegram_id:', ctx.from.id)
-    const lang = await getUserLanguage(ctx)
-    const user = await db('users').where({ telegram_id: ctx.from.id }).first()
-    if (!user) {
-      console.log('[INVITE DEBUG] User not found in DB.')
-      return ctx.reply(botText(lang, 'userNotFound'))
-    }
-
-    let refId = user.username ? `@${user.username}` : String(user.telegram_id)
-    let startPayload = getReferralStartPayload(refId)
-
-    if (!startPayload) {
-      console.log('[INVITE DEBUG] Username failed regex, falling back to telegram_id.')
-      refId = String(user.telegram_id)
-      startPayload = getReferralStartPayload(refId)
-    }
-
-    if (!startPayload) {
-      console.log('[INVITE DEBUG] Failed to generate start payload entirely.')
-      return ctx.reply('❌ Error generating link. Please contact support.')
-    }
-
-    // Dynamically fetch bot username to prevent undefined errors
-    const botUsername = ctx.botInfo?.username || (await ctx.telegram.getMe()).username
-    const refLink = `https://t.me/${botUsername}?start=${encodeURIComponent(startPayload)}`
-
-    const message = botText(lang, 'inviteEarn', { link: refLink })
-
-    return ctx.replyWithMarkdown(message, {
-      reply_markup: {
-        inline_keyboard: [
-          [{
-            text: botText(lang, 'shareGroup'),
-            url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(botText(lang, 'shareText'))}`,
-          }],
-          [{
-            text: botText(lang, 'openGame'),
-            web_app: { url: process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL },
-          }],
-        ],
-      },
-    })
-  } catch (err) {
-    console.error('[INVITE DEBUG] Invite command error:', err)
-    return ctx.reply(`❌ Could not generate your invite link. Error: ${err.message}`)
-  }
+  console.log('[TEST] /invite command or button was clicked!')
+  return ctx.reply('✅ The /invite command is working! We will add the link back next.')
 }
 
 bot.start(async (ctx) => {
@@ -258,13 +213,9 @@ bot.start(async (ctx) => {
 })
 
 bot.action('show_invite', async (ctx) => {
-  try {
-    await ctx.answerCbQuery()
-    await showInvite(ctx)
-  } catch (err) {
-    console.error('[INVITE BUTTON CRASH]', err)
-    await ctx.answerCbQuery('Error generating link. Check logs.')
-  }
+  console.log('[TEST] Invite button clicked!')
+  await ctx.answerCbQuery()
+  return ctx.reply('✅ The Invite Button is working! We will add the link back next.')
 })
 
 bot.action('lang_en', async (ctx) => {
