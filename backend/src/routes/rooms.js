@@ -64,48 +64,73 @@ router.post('/join', userAuth, async (req, res) => {
         .forUpdate()
         .first()
 
-      if (activeRoom) {
-        return { status: 'spectator', room: activeRoom }
-      }
-
-      // 4. FIND OR CREATE ROOM
-      const waitingRooms = await trx('game_rooms')
-        .where({ stake_amount: stake, status: 'WAITING' })
-        .orderBy('created_at')
-        .forUpdate()
       let room = null
       let existing = null
 
-      for (const waitingRoom of waitingRooms) {
-        const existingParticipant = await trx('room_participants')
-          .where({ room_id: waitingRoom.id, user_id: user.id })
+      if (req.body.roomId) {
+        room = await trx('game_rooms')
+          .where({ id: req.body.roomId })
+          .forUpdate()
           .first()
-        if (existingParticipant) {
-          room = waitingRoom
-          existing = existingParticipant
-          break
-        }
+        if (!room) throw new Error('ROOM_NOT_FOUND')
 
-        const participantCount = await trx('room_participants')
-          .where({ room_id: waitingRoom.id })
-          .count('* as count')
+        existing = await trx('room_participants')
+          .where({ room_id: room.id, user_id: user.id })
           .first()
-        if (Number(participantCount.count) < MAX_ROOM_PLAYERS) {
-          room = waitingRoom
-          break
+        if (!existing) throw new Error('NOT_ROOM_PARTICIPANT')
+        if (!['WAITING', 'COUNTDOWN'].includes(room.status)) {
+          throw new Error('CARD_CHANGE_LOCKED')
+        }
+      } else if (activeRoom) {
+        existing = await trx('room_participants')
+          .where({ room_id: activeRoom.id, user_id: user.id })
+          .first()
+        if (existing && activeRoom.status === 'COUNTDOWN') {
+          room = activeRoom
+        } else if (existing) {
+          throw new Error('CARD_CHANGE_LOCKED')
+        } else {
+          return { status: 'spectator', room: activeRoom }
         }
       }
 
-      console.log('[join] Room found/created:', room ? room.id : 'Creating new room')
-
       if (!room) {
-        const [newRoom] = await trx('game_rooms').insert({
-          stake_amount: stake,
-          status: 'WAITING',
-          called_numbers: JSON.stringify([])
-        }).returning('*')
-        room = newRoom
-        console.log('[join] New room created:', room.id)
+        // 4. FIND OR CREATE ROOM
+        const waitingRooms = await trx('game_rooms')
+          .where({ stake_amount: stake, status: 'WAITING' })
+          .orderBy('created_at')
+          .forUpdate()
+        for (const waitingRoom of waitingRooms) {
+          const existingParticipant = await trx('room_participants')
+            .where({ room_id: waitingRoom.id, user_id: user.id })
+            .first()
+          if (existingParticipant) {
+            room = waitingRoom
+            existing = existingParticipant
+            break
+          }
+
+          const participantCount = await trx('room_participants')
+            .where({ room_id: waitingRoom.id })
+            .count('* as count')
+            .first()
+          if (Number(participantCount.count) < MAX_ROOM_PLAYERS) {
+            room = waitingRoom
+            break
+          }
+        }
+
+        console.log('[join] Room found/created:', room ? room.id : 'Creating new room')
+
+        if (!room) {
+          const [newRoom] = await trx('game_rooms').insert({
+            stake_amount: stake,
+            status: 'WAITING',
+            called_numbers: JSON.stringify([])
+          }).returning('*')
+          room = newRoom
+          console.log('[join] New room created:', room.id)
+        }
       }
 
       // 5. CHECK IF ALREADY IN ROOM
@@ -124,6 +149,7 @@ router.post('/join', userAuth, async (req, res) => {
       // Check if this card is already taken in the room
       const existingCard = await trx('room_card_selections')
         .where({ room_id: room.id, card_id: cardNumber })
+        .whereNot({ user_id: user.id })
         .first();
       if (existingCard) {
         throw new Error('CARD_ALREADY_TAKEN');
@@ -132,8 +158,19 @@ router.post('/join', userAuth, async (req, res) => {
       let cardSelection = await trx('room_card_selections')
         .where({ room_id: room.id, user_id: user.id })
         .first();
-      if (!cardSelection) {
-        const matrix = generateCardFromNumber(cardNumber);
+      const matrix = generateCardFromNumber(cardNumber);
+      if (cardSelection) {
+        const [updated] = await trx('room_card_selections')
+          .where({ room_id: room.id, user_id: user.id })
+          .update({
+            card_id: cardNumber,
+            card: JSON.stringify(matrix),
+            status: 'reserved',
+          })
+          .returning('*');
+        cardSelection = updated;
+        console.log(`[JOIN] Updated card to ${cardNumber} for user ${user.id}.`);
+      } else {
         const [inserted] = await trx('room_card_selections').insert({
           room_id: room.id,
           card_id: cardNumber,
@@ -178,6 +215,15 @@ router.post('/join', userAuth, async (req, res) => {
     }
     if (err.message === 'CARD_ALREADY_TAKEN') {
       return res.status(400).json({ error: 'Card already taken' })
+    }
+    if (err.message === 'CARD_CHANGE_LOCKED') {
+      return res.status(400).json({ error: 'Game has already started. Cannot change card.' })
+    }
+    if (err.message === 'ROOM_NOT_FOUND') {
+      return res.status(404).json({ error: 'Room not found' })
+    }
+    if (err.message === 'NOT_ROOM_PARTICIPANT') {
+      return res.status(403).json({ error: 'Join the room before changing your card.' })
     }
     res.status(500).json({ error: 'JOIN_FAILED', message: err.message })
   }

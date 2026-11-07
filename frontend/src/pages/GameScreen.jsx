@@ -1,6 +1,7 @@
 import { useEffect, useState, Fragment } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import CardSelection from './CardSelection';
 import SocketService from '../services/socket';
 import { getMuteState, playBallCall, toggleMute } from '../utils/bingoSounds';
 
@@ -318,6 +319,20 @@ const GameScreen = () => {
           </div>
         )}
       </div>
+    );
+  }
+
+  if (!gameStarted) {
+    return (
+      <CardSelection
+        countdown={countdown}
+        isGameStarted={gameStarted || (countdown !== null && countdown <= 0)}
+        cardData={cardsData[0] || null}
+        onCardUpdated={(updatedCard) => {
+          setCardsData([updatedCard]);
+          setMarkedNumbers([]);
+        }}
+      />
     );
   }
 
