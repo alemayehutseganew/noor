@@ -41,6 +41,59 @@ export default function Lobby() {
   }
 
   useEffect(() => {
+    let isActive = true
+    const savedRoom = localStorage.getItem('activeGameRoom')
+    if (!savedRoom) return () => { isActive = false }
+
+    const restoreActiveRoom = async () => {
+      let activeRoom
+      try {
+        activeRoom = JSON.parse(savedRoom)
+      } catch (err) {
+        console.error('Saved active room data is invalid:', err)
+        localStorage.removeItem('activeGameRoom')
+        return
+      }
+
+      if (!activeRoom?.roomId) {
+        localStorage.removeItem('activeGameRoom')
+        return
+      }
+
+      try {
+        const response = await fetchApi(
+          `/rooms/${encodeURIComponent(activeRoom.roomId)}/my-cards`,
+          { cache: 'no-store' },
+        )
+        if (!isActive) return
+
+        if (response.status === 403 || response.status === 404) {
+          localStorage.removeItem('activeGameRoom')
+          return
+        }
+        if (!response.ok) {
+          throw new Error(`Active room check failed: ${response.status}`)
+        }
+
+        const data = await response.json()
+        if (!isActive) return
+        if (!Array.isArray(data.cards) || data.cards.length === 0) {
+          localStorage.removeItem('activeGameRoom')
+          return
+        }
+
+        const stake = Number(activeRoom.stake) || 10
+        navigate(`/game?roomId=${encodeURIComponent(activeRoom.roomId)}&stake=${stake}`)
+      } catch (err) {
+        if (isActive) console.error('Failed to restore active game room:', err)
+      }
+    }
+
+    restoreActiveRoom()
+    return () => { isActive = false }
+  }, [navigate])
+
+  useEffect(() => {
     refreshBalance().catch((err) => console.error('Failed to refresh wallet balance:', err))
     const onFocus = () => refreshBalance().catch((err) => console.error('Failed to refresh wallet balance:', err))
     window.addEventListener('focus', onFocus)

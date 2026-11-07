@@ -114,6 +114,11 @@ export default function CardSelection({
         return;
       }
 
+      localStorage.setItem('activeGameRoom', JSON.stringify({
+        roomId: data.roomId || roomId,
+        stake: Number(data.stake || stake),
+      }));
+
       const updatedCard = {
         id: Number(data.card.id),
         matrix: data.card.matrix,
@@ -132,6 +137,10 @@ export default function CardSelection({
       if (roomId && ['started', 'in progress', 'playing', 'cannot join'].some((phrase) => (
         errorMessage.includes(phrase)
       ))) {
+        localStorage.setItem('activeGameRoom', JSON.stringify({
+          roomId,
+          stake: Number(stake),
+        }));
         navigate(`/game?roomId=${encodeURIComponent(roomId)}&stake=${encodeURIComponent(stake)}`);
         return;
       }
