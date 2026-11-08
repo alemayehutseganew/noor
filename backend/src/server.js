@@ -94,9 +94,15 @@ const corsOptions = {
 app.use(cors(corsOptions))
 app.use(express.json({ limit: '1mb' }))
 
-app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => {
+app.post(`/telegraf/${bot.secretPathComponent()}`, async (req, res) => {
   console.log('[SERVER TRACE] Telegram update received')
-  return bot.handleUpdate(req.body, res)
+  res.sendStatus(200)
+
+  try {
+    await bot.handleUpdate(req.body)
+  } catch (err) {
+    console.error('[WEBHOOK ERROR] Failed to process update:', err)
+  }
 })
 
 // --- Health check ---
