@@ -94,10 +94,11 @@ export default function AdminPayments() {
       tx.first_name,
       tx.username,
       tx.telegram_id,
+      tx.source,
       tx.type,
       tx.status,
       tx.reference_id,
-      tx.source,
+
     ];
     return searchableFields.some((value) => String(value || '').toLowerCase().includes(search));
   });
@@ -188,7 +189,7 @@ export default function AdminPayments() {
                     </span>
                   </td>
                   <td className="px-3 py-4 sm:px-5">
-                    {type === 'withdrawal' ? (tx.source === 'referral' ? 'Agent' : 'Playable') : '—'}
+                    {type === 'withdrawal' ? (['agent', 'referral'].includes(tx.source) ? 'Agent' : 'Playable') : '—'}
                   </td>
                   <td className="whitespace-nowrap px-3 py-4 font-mono font-semibold text-white sm:px-5">
                     {Number(tx.amount || 0).toFixed(2)} ETB

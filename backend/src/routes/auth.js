@@ -6,18 +6,6 @@ const db = require('../db')
 const router = express.Router()
 const { userAuth } = require('../../middleware/auth')
 
-function parseReferralRef(value) {
-  if (typeof value !== 'string') return null
-  const referralRef = value.trim()
-  if (!referralRef) return null
-  if (referralRef.startsWith('u_')) return { type: 'username', value: referralRef.slice(2) }
-  if (referralRef.startsWith('i_')) return { type: 'telegram_id', value: referralRef.slice(2) }
-  if (referralRef.startsWith('@')) return { type: 'username', value: referralRef.slice(1) }
-  if (/^\d+$/.test(referralRef)) return { type: 'telegram_id', value: referralRef }
-  if (referralRef.startsWith('REF_')) return { type: 'referral_code', value: referralRef.slice(4) }
-  return null
-}
-
 function validateInitData(initData, botToken) {
   const params = new URLSearchParams(initData)
   const hash = params.get('hash')
@@ -46,7 +34,7 @@ function validateInitData(initData, botToken) {
 
 router.post('/login', async (req, res) => {
   try {
-    const { initData, referralRef } = req.body || {}
+    const { initData, referralCode } = req.body || {}
     if (!initData) {
       return res.status(400).json({ error: 'initData is required' })
     }
@@ -63,32 +51,54 @@ router.post('/login', async (req, res) => {
 
     const telegramId = tgUser.id
 
-    let user = await db('users').where({ telegram_id: telegramId }).first()
+    const userFields = ['id', 'telegram_id', 'username', 'first_name', 'wallet_balance']
+    let user = await db('users')
+      .select(userFields)
+      .where({ telegram_id: telegramId })
+      .first()
 
     if (!user) {
       user = await db.transaction(async (trx) => {
-        const parsedReferral = parseReferralRef(referralRef)
-        let inviterQuery
-        if (parsedReferral?.type === 'username' && parsedReferral.value) {
-          inviterQuery = trx('users').whereRaw('LOWER(username) = LOWER(?)', [parsedReferral.value])
-        } else if (parsedReferral?.type === 'telegram_id') {
-          inviterQuery = trx('users').where({ telegram_id: parsedReferral.value })
-        } else if (parsedReferral?.type === 'referral_code') {
-          inviterQuery = trx('users').where({ referral_code: parsedReferral.value })
+        const username = tgUser.username || null
+        const code = typeof referralCode === 'string' ? referralCode.trim().slice(0, 128) : ''
+        let inviter
+
+        if (code) {
+          if (/^\d+$/.test(code)) {
+            inviter = await trx('users')
+              .select('id')
+              .where({ telegram_id: code })
+              .first()
+          }
+
+          if (!inviter) {
+            const usernameCode = code.startsWith('@') ? code.slice(1) : code
+            inviter = await trx('users')
+              .select('id')
+              .whereRaw('LOWER(username) = LOWER(?)', [usernameCode])
+              .first()
+          }
+
+          if (!inviter) {
+            const phoneDigits = code.replace(/\D/g, '')
+            if (phoneDigits) {
+              inviter = await trx('users')
+                .select('id')
+                .whereRaw("regexp_replace(phone_number, '[^0-9]', '', 'g') = ?", [phoneDigits])
+                .first()
+            }
+          }
         }
 
-        const inviter = inviterQuery ? await inviterQuery.first() : null
-        const username = tgUser.username || null
         const [created] = await trx('users')
           .insert({
-          telegram_id: telegramId,
-          username,
-          first_name: tgUser.first_name || null,
-          wallet_balance: 0,
-          referral_code: username ? `@${username}` : String(telegramId),
-          referred_by: inviter?.id || null,
-        })
-        .returning('*')
+            telegram_id: telegramId,
+            username,
+            first_name: tgUser.first_name || null,
+            wallet_balance: 0,
+            referred_by: inviter?.id || null,
+          })
+          .returning(userFields)
         return created
       })
     } else {
@@ -96,9 +106,11 @@ router.post('/login', async (req, res) => {
       await db('users').where({ id: user.id }).update({
         username,
         first_name: tgUser.first_name || user.first_name,
-        referral_code: username ? `@${username}` : String(telegramId),
       })
-      user = await db('users').where({ id: user.id }).first()
+      user = await db('users')
+        .select(userFields)
+        .where({ id: user.id })
+        .first()
     }
 
     const token = jwt.sign(

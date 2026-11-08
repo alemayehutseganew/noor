@@ -5,12 +5,19 @@ const db = require('../db')
 const { parseTelebirrSMS, creditVerifiedDeposit } = require('../services/paymentService')
 const { getT } = require('./translations')
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://noor-one-beta.vercel.app/'
+const DEFAULT_FRONTEND_URL = 'https://noor-one-beta.vercel.app/'
+const FRONTEND_URL = process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL
 const userStates = {}
 let commandRegistrationPromise
-let botInfoPromise
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN)
+
+bot.use((ctx, next) => {
+  if (ctx.message?.text?.startsWith('/') && ctx.from?.id !== undefined) {
+    delete userStates[ctx.from.id]
+  }
+  return next()
+})
 
 bot.catch((err, ctx) => {
   console.error(`[BOT] Error for ${ctx.updateType}:`, err.message)
@@ -18,7 +25,10 @@ bot.catch((err, ctx) => {
 
 async function getUserLanguage(telegramId) {
   try {
-    const user = await db('users').where({ telegram_id: telegramId }).first()
+    const user = await db('users')
+      .select('language')
+      .where({ telegram_id: telegramId })
+      .first()
     return user?.language || 'en'
   } catch (err) {
     console.error('Failed to fetch user language:', err.message)
@@ -41,12 +51,56 @@ function getMainMenu(lang = 'en') {
   }
 }
 
+function botText(lang, key, values = {}) {
+  const messages = {
+    en: {
+      inviteEarn: '🎉 Invite & Earn 5%!\n\nShare your link with friends. Earn 5% of the total prize pool when an invited player wins:\n{{link}}',
+      shareText: 'Join me on GoBingo and win big! 🎰',
+      shareGroup: '📢 Share to Group/Channel',
+      openGame: '🎮 Open Game',
+    },
+    am: {
+      inviteEarn: '🎉 ይጋብዙ እና 5% ያግኙ!\n\nሊንክዎን ለጓደኞችዎ ያጋሩ። የጋበዙት ተጫዋች ሲያሸንፍ ከጠቅላላ የሽልማት ገንዘብ 5% ያግኙ፦\n{{link}}',
+      shareText: 'ከእኔ ጋር በGoBingo ይቀላቀሉ እና ትልቅ ያሸንፉ! 🎰',
+      shareGroup: '📢 ለቡድን/ቻናል አጋራ',
+      openGame: '🎮 ጨዋታውን ክፈት',
+    },
+  }
+  const template = messages[lang]?.[key] || messages.en[key] || key
+  return template.replace(/\{\{(\w+)\}\}/g, (match, name) => values[name] ?? match)
+}
+
+async function showInvite(ctx) {
+  try {
+    const lang = await getUserLanguage(ctx.from.id)
+    const telegramId = ctx.from.id
+    const botUsername = (process.env.BOT_USERNAME || 'YogaBingoBot').replace(/^@/, '')
+    const refLink = `https://t.me/${botUsername}?start=ref_${telegramId}`
+    const message = botText(lang, 'inviteEarn', { link: refLink })
+    const shareText = botText(lang, 'shareText')
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(shareText)}`
+
+    return await ctx.reply(message, {
+      disable_web_page_preview: true,
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: botText(lang, 'shareGroup'), url: shareUrl }],
+          [{ text: botText(lang, 'openGame'), web_app: { url: FRONTEND_URL || DEFAULT_FRONTEND_URL } }],
+        ],
+      },
+    })
+  } catch (err) {
+    console.error('[INVITE CRASH]', err)
+    return ctx.reply('❌ Could not generate invite link. Please try again.')
+  }
+}
+
 async function registerBotCommands() {
   if (!commandRegistrationPromise) {
     commandRegistrationPromise = bot.telegram.setMyCommands([
       { command: 'start', description: 'Start' },
       { command: 'balance', description: 'balance' },
-      { command: 'invite', description: 'Get your referral link to earn 5%' },
+      { command: 'invite', description: 'Invite friends and earn 5%' },
       { command: 'deposit', description: 'Deposit' },
       { command: 'withdraw', description: 'Withdraw' },
       { command: 'menu', description: 'menu' },
@@ -66,48 +120,6 @@ registerBotCommands().catch((err) => {
   console.error('[BOT] Command menu initialization failed:', err)
 })
 
-async function sendInvite(ctx) {
-  try {
-    const user = await db('users').where({ telegram_id: ctx.from.id }).first()
-    if (!user) return ctx.reply('Please open the Mini App first to register.')
-
-    const refId = user.username || user.telegram_id
-    const botUsername = ctx.botInfo?.username || await getBotUsername()
-    const refLink = `https://t.me/${botUsername}?start=REF_${encodeURIComponent(String(refId))}`
-    const shareText = 'Join me on GoBingo and win big! 🎰'
-    const message = `🎉 Invite & Earn 5%!\n\nShare your unique link with friends. When they win a game, you get 5% of their prize!\n\n🔗 Your Link:\n${refLink}\n\nYou can withdraw your earnings once you reach 1,000 ETB!`
-    const openGameButton = ctx.chat?.type === 'private'
-      ? { text: '🎮 Open Game', web_app: { url: FRONTEND_URL } }
-      : { text: '🎮 Open Game', url: FRONTEND_URL }
-
-    return ctx.reply(message, {
-      disable_web_page_preview: true,
-      reply_markup: {
-        inline_keyboard: [
-          [{
-            text: '📢 Share to Group/Channel',
-            url: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(shareText)}`,
-          }],
-          [openGameButton],
-        ],
-      },
-    })
-  } catch (err) {
-    console.error('Invite command error:', err)
-    return ctx.reply('❌ Could not generate your invite link. Please try again later.')
-  }
-}
-
-async function getBotUsername() {
-  if (!botInfoPromise) {
-    botInfoPromise = bot.telegram.getMe().catch((err) => {
-      botInfoPromise = null
-      throw err
-    })
-  }
-  return (await botInfoPromise).username
-}
-
 bot.start(async (ctx) => {
   try {
     console.log('[BOT TRACE] /start command triggered!')
@@ -119,14 +131,14 @@ bot.start(async (ctx) => {
 
     const payload = ctx.startPayload
     if (payload) {
-      let webAppUrl = FRONTEND_URL
+      const referralCode = payload.replace(/^ref_/i, '')
+      let webAppUrl
       try {
         const parsedUrl = new URL(FRONTEND_URL)
-        const referral = payload.startsWith('REF_') ? payload.slice(4) : payload
-        parsedUrl.searchParams.set('ref', /^\d+$/.test(referral) ? referral : `@${referral}`)
+        parsedUrl.searchParams.set('ref', referralCode)
         webAppUrl = parsedUrl.toString()
       } catch (err) {
-        console.error('[BOT] Invalid FRONTEND_URL for referral link:', err.message)
+        console.error('[BOT] Invalid FRONTEND_URL for start link:', err.message)
         return ctx.reply('The game link is temporarily unavailable.')
       }
 
@@ -153,35 +165,35 @@ bot.start(async (ctx) => {
   }
 })
 
-bot.command(['invite', 'refer'], sendInvite)
+bot.command(['invite', 'referral'], async (ctx) => {
+  delete userStates[ctx.from.id]
+  await showInvite(ctx)
+})
+
 bot.action('show_invite', async (ctx) => {
-  await ctx.answerCbQuery().catch((err) => console.error('Invite callback error:', err))
-  await sendInvite(ctx)
+  delete userStates[ctx.from.id]
+  await ctx.answerCbQuery().catch(() => {})
+  await showInvite(ctx)
 })
 
 bot.on('inline_query', async (ctx) => {
-  const query = ctx.inlineQuery.query.trim()
-  const referral = query.startsWith('start=') ? query.slice('start='.length) : query
-  if (!referral) {
-    return ctx.answerInlineQuery([])
-  }
-
-  const botUsername = process.env.TELEGRAM_BOT_USERNAME || process.env.VITE_BOT_USERNAME || 'GoBingoBot'
-  const referralUrl = `https://t.me/${botUsername.replace(/^@/, '')}?start=${encodeURIComponent(referral)}`
-  await ctx.answerInlineQuery([{
+  const telegramId = ctx.from.id
+  const startPayload = `ref_${telegramId}`
+  const botUsername = (process.env.BOT_USERNAME || 'YogaBingoBot').replace(/^@/, '')
+  const referralUrl = `https://t.me/${botUsername}?start=${startPayload}`
+  return ctx.answerInlineQuery([{
     type: 'article',
-    id: 'Gobingo-referral',
-    title: 'Play GoBingo!',
+    id: 'referral-card',
+    title: '🎰 Play GoBingo!',
     description: 'Tap to join the game and win big!',
     input_message_content: {
       message_text: `🎰 Join me on GoBingo and win big!\n${referralUrl}`,
+      disable_web_page_preview: true,
     },
     reply_markup: {
-      inline_keyboard: [
-        [{ text: '🎮 Play Now', url: referralUrl }],
-      ],
+      inline_keyboard: [[{ text: '🎮 Play Now', url: referralUrl }]],
     },
-  }])
+  }], { cache_time: 0 })
 })
 
 bot.action('lang_en', async (ctx) => {
@@ -219,7 +231,10 @@ bot.command('play', async (ctx) => {
 bot.command('balance', async (ctx) => {
   const t = getT(await getUserLanguage(ctx.from.id))
   try {
-    const user = await db('users').where({ telegram_id: ctx.from.id }).first()
+    const user = await db('users')
+      .select('wallet_balance')
+      .where({ telegram_id: ctx.from.id })
+      .first()
     if (user) ctx.reply(`${t.my_balance}${Number(user.wallet_balance || 0).toFixed(2)}`)
     else ctx.reply(t.user_not_found)
   } catch (err) {
@@ -256,7 +271,10 @@ bot.action('menu_balance', async (ctx) => {
   const t = getT(await getUserLanguage(ctx.from.id))
   try {
     await ctx.answerCbQuery().catch(() => {})
-    const user = await db('users').where({ telegram_id: ctx.from.id }).first()
+    const user = await db('users')
+      .select('wallet_balance')
+      .where({ telegram_id: ctx.from.id })
+      .first()
     if (!user) return ctx.reply(t.user_not_found)
     ctx.reply(`${t.my_balance}${Number(user.wallet_balance || 0).toFixed(2)}`).catch(() => {})
   } catch (err) {
@@ -289,85 +307,6 @@ bot.action('menu_room', async (ctx) => {
 bot.action('menu_help', async (ctx) => {
   await ctx.answerCbQuery().catch(() => {})
   ctx.reply(getT(await getUserLanguage(ctx.from.id)).help_text).catch(() => {})
-})
-
-bot.on('text', async (ctx) => {
-  const t = getT(await getUserLanguage(ctx.from.id))
-  try {
-    const state = userStates[ctx.from.id]
-    if (!state) return
-
-    if (state === 'WAITING_FOR_RECEIPT') {
-      const parsedFromSMS = parseTelebirrSMS(ctx.message.text)
-      if (!parsedFromSMS) {
-        return ctx.reply('Could not find a valid transaction number in that SMS.').catch(() => {})
-      }
-
-      const user = await db('users').where({ telegram_id: ctx.from.id }).first()
-      if (!user) {
-        return ctx.reply(t.user_not_found).catch(() => {})
-      }
-
-      console.log('[TELEBIRR VERIFY] Extracted Reference:', parsedFromSMS.transactionId)
-
-      let deposit
-      try {
-        deposit = await creditVerifiedDeposit({
-          userId: user.id,
-          reference: parsedFromSMS.transactionId,
-          amount: parsedFromSMS.amount,
-        })
-      } catch (err) {
-        if (err.code === '23505') {
-          return ctx.reply(t.deposit_used).catch(() => {})
-        }
-        if (err.statusCode === 400) {
-          return ctx.reply(`${t.deposit_verify_fail}${err.message}`).catch(() => {})
-        }
-        console.error('[BOT] Deposit processing failed:', err.message)
-        return ctx.reply(t.deposit_verify_fail).catch(() => {})
-      }
-
-      ctx.reply(`${t.deposit_success}${deposit.amount.toFixed(2)}${t.deposit_success2}`).catch(() => {})
-      delete userStates[ctx.from.id]
-      return
-    }
-
-    if (state === 'WAITING_FOR_WITHDRAW_AMOUNT') {
-      const amount = Number(ctx.message.text)
-      if (isNaN(amount) || amount < 100) {
-        return ctx.reply(t.withdraw_invalid).catch(() => {})
-      }
-
-      const user = await db('users').where({ telegram_id: ctx.from.id }).first()
-      if (!user) return ctx.reply(t.user_not_found).catch(() => {})
-
-      if (Number(user.wallet_balance) < amount) {
-        return ctx.reply(`${t.withdraw_insufficient}${Number(user.wallet_balance).toFixed(2)}.`).catch(() => {})
-      }
-
-      await db.transaction(async (trx) => {
-        await trx('users')
-          .where({ id: user.id })
-          .decrement('wallet_balance', amount)
-
-        await trx('payments').insert({
-          user_id: user.id,
-          amount,
-          provider: 'telebirr',
-          status: 'pending',
-          type: 'withdrawal',
-          transaction_reference: `WD-${Date.now()}-${user.id}`
-        })
-      })
-
-      ctx.reply(`${t.withdraw_success}${amount.toFixed(2)}${t.withdraw_pending}`).catch(() => {})
-      delete userStates[ctx.from.id]
-    }
-  } catch (err) {
-    console.error('Text Handler Error:', err)
-    ctx.reply(t.err_general).catch(() => {})
-  }
 })
 
 bot.on('contact', async (ctx) => {
@@ -414,8 +353,92 @@ const handleUpdate = async (req, res) => {
   }
 }
 
-bot.on('message', (ctx) => {
+bot.on('message', (ctx, next) => {
   console.log('[BOT TRACE] Incoming message:', ctx.message.text || 'non-text message')
+  return next()
 })
 
 module.exports = { bot, getMainMenu, handleUpdate }
+
+bot.on('text', async (ctx) => {
+  try {
+    const text = ctx.message.text
+    if (text && text.startsWith('/')) return
+
+    const t = getT(await getUserLanguage(ctx.from.id))
+    const state = userStates[ctx.from.id]
+    if (!state) return
+
+    if (state === 'WAITING_FOR_RECEIPT') {
+      const parsedFromSMS = parseTelebirrSMS(text)
+      if (!parsedFromSMS) {
+        return ctx.reply('Could not find a valid transaction number in that SMS.').catch(() => {})
+      }
+
+      const user = await db('users').where({ telegram_id: ctx.from.id }).first()
+      if (!user) {
+        return ctx.reply(t.user_not_found).catch(() => {})
+      }
+
+      console.log('[TELEBIRR VERIFY] Extracted Reference:', parsedFromSMS.transactionId)
+
+      let deposit
+      try {
+        deposit = await creditVerifiedDeposit({
+          userId: user.id,
+          reference: parsedFromSMS.transactionId,
+          amount: parsedFromSMS.amount,
+        })
+      } catch (err) {
+        if (err.code === '23505') {
+          return ctx.reply(t.deposit_used).catch(() => {})
+        }
+        if (err.statusCode === 400) {
+          return ctx.reply(`${t.deposit_verify_fail}${err.message}`).catch(() => {})
+        }
+        console.error('[BOT] Deposit processing failed:', err.message)
+        return ctx.reply(t.deposit_verify_fail).catch(() => {})
+      }
+
+      ctx.reply(`${t.deposit_success}${deposit.amount.toFixed(2)}${t.deposit_success2}`).catch(() => {})
+      delete userStates[ctx.from.id]
+      return
+    }
+
+    if (state === 'WAITING_FOR_WITHDRAW_AMOUNT') {
+      const amount = Number(text)
+      if (isNaN(amount) || amount < 100) {
+        return ctx.reply(t.withdraw_invalid).catch(() => {})
+      }
+
+      const user = await db('users').where({ telegram_id: ctx.from.id }).first()
+      if (!user) return ctx.reply(t.user_not_found).catch(() => {})
+
+      if (Number(user.wallet_balance) < amount) {
+        return ctx.reply(`${t.withdraw_insufficient}${Number(user.wallet_balance).toFixed(2)}.`).catch(() => {})
+      }
+
+      await db.transaction(async (trx) => {
+        await trx('users')
+          .where({ id: user.id })
+          .decrement('wallet_balance', amount)
+
+        await trx('payments').insert({
+          user_id: user.id,
+          amount,
+          provider: 'telebirr',
+          status: 'pending',
+          type: 'withdrawal',
+          transaction_reference: `WD-${Date.now()}-${user.id}`
+        })
+      })
+
+      ctx.reply(`${t.withdraw_success}${amount.toFixed(2)}${t.withdraw_pending}`).catch(() => {})
+      delete userStates[ctx.from.id]
+    }
+  } catch (err) {
+    console.error('Text Handler Error:', err)
+    const t = getT('en')
+    ctx.reply(t.err_general).catch((replyErr) => console.error('Failed to send text-handler error:', replyErr))
+  }
+})

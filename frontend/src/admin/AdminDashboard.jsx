@@ -11,6 +11,7 @@ export default function AdminDashboard() {
     activeGames: 0,
     totalWagered: '0.00',
     totalPayouts: '0.00',
+    totalReferralCommissions: '0.00',
     platformProfit: '0.00'
   });
   const [loading, setLoading] = useState(true);
@@ -30,6 +31,7 @@ export default function AdminDashboard() {
           activeGames: data.activeGames || 0,
           totalWagered: parseFloat(data.totalWagered || 0).toFixed(2),
           totalPayouts: parseFloat(data.totalPayouts || 0).toFixed(2),
+          totalReferralCommissions: parseFloat(data.totalReferralCommissions || 0).toFixed(2),
           platformProfit: parseFloat(data.platformProfit || 0).toFixed(2)
         });
       } catch (err) {
@@ -112,7 +114,11 @@ export default function AdminDashboard() {
                 <>
                   <p><strong>{t('platformProfit')}:</strong> ETB {stats.platformProfit}</p>
                   <div className="bg-slate-900 p-3 rounded-lg text-sm font-mono mt-2">
-                    {t('profitMath', { wagered: stats.totalWagered, payouts: stats.totalPayouts })}<br/>
+                    {t('profitMath', {
+                      wagered: stats.totalWagered,
+                      payouts: stats.totalPayouts,
+                      commissions: stats.totalReferralCommissions,
+                    })}<br/>
                     {t('profitMathResult', { profit: stats.platformProfit })}
                   </div>
                   <p className="text-sm text-slate-400 mt-2">{t('profitDescription')}</p>

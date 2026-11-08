@@ -96,13 +96,21 @@ router.get('/stats', adminAuth, async (req, res) => {
       .first()
     const totalPayouts = parseFloat(payoutsResult.total || 0).toFixed(2)
 
-    const platformProfit = (parseFloat(totalWagered) - parseFloat(totalPayouts)).toFixed(2)
+    const referralCommissionsResult = await db('financial_ledger')
+      .where({ type: 'referral_commission' })
+      .sum('amount as total')
+      .first()
+    const totalReferralCommissions = parseFloat(referralCommissionsResult.total || 0).toFixed(2)
+    const platformProfit = (
+      parseFloat(totalWagered) - parseFloat(totalPayouts) - parseFloat(totalReferralCommissions)
+    ).toFixed(2)
 
     res.json({
       totalUsers,
       activeGames,
       totalWagered,
       totalPayouts,
+      totalReferralCommissions,
       platformProfit,
     })
   } catch (err) {
@@ -335,14 +343,15 @@ router.post('/payments/:id/reject', adminAuth, async (req, res) => {
         }
 
         const source = p.provider_response?.source || 'wallet'
-        if (source === 'referral') {
+        if (source === 'agent' || source === 'referral') {
           await trx('users').where({ id: p.user_id }).increment('referral_balance', p.amount)
-          newReferralBalance = Number(user.referral_balance || 0) + Number(p.amount)
+          newReferralBalance = Math.round(
+            (Number(user.referral_balance || 0) + Number(p.amount)) * 100,
+          ) / 100
           newBalance = Number(user.wallet_balance || 0)
         } else {
           await trx('users').where({ id: p.user_id }).increment('wallet_balance', p.amount)
           newBalance = Number(user.wallet_balance || 0) + Number(p.amount)
-          newReferralBalance = Number(user.referral_balance || 0)
         }
 
         await trx('financial_ledger').insert({
@@ -365,7 +374,10 @@ router.post('/payments/:id/reject', adminAuth, async (req, res) => {
 
     if (paymentType === 'withdrawal') {
       try {
-        req.app.get('io')?.to(`user_${targetUserId}`).emit('wallet_updated', { newBalance, referralBalance: newReferralBalance })
+        req.app.get('io')?.to(`user_${targetUserId}`).emit('wallet_updated', {
+          newBalance,
+          ...(newReferralBalance !== undefined ? { referralBalance: newReferralBalance } : {}),
+        })
       } catch (emitErr) {
         console.error('Failed to emit wallet_updated:', emitErr)
       }

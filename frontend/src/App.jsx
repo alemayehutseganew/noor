@@ -31,12 +31,11 @@ export default function App() {
 
     const initData = tg?.initData || ''
     if (!initData) return
-    const referralRef = new URLSearchParams(window.location.search).get('ref') || ''
-
+    const referralCode = new URLSearchParams(window.location.search).get('ref') || ''
     fetchApi('/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ initData, referralRef }),
+      body: JSON.stringify({ initData, referralCode }),
     })
       .then((r) => r.json())
       .then((data) => {

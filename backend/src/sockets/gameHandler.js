@@ -734,12 +734,20 @@ function initGameHandler(io) {
         console.log(`[PAYOUT] Pool: ${totalPool}, Fee: ${platformFee}, Payout: ${payoutPerWinner}`);
 
         // Process payouts in DB
-        const referralWalletUpdates = []
+        const referralBalanceUpdatesCents = new Map()
         await db.transaction(async (trx) => {
           const referredWinners = []
           for (const winnerId of room.claimedBy) {
-            let winnerUser = await trx('users').where({ id: winnerId }).first();
-            if (!winnerUser) winnerUser = await trx('users').where({ telegram_id: winnerId }).first();
+            let winnerUser = await trx('users')
+              .select('id', 'first_name', 'username', 'referred_by')
+              .where({ id: winnerId })
+              .first();
+            if (!winnerUser) {
+              winnerUser = await trx('users')
+                .select('id', 'first_name', 'username', 'referred_by')
+                .where({ telegram_id: winnerId })
+                .first();
+            }
             if (!winnerUser) continue;
             if (winnerName === 'A Player') winnerName = winnerUser.first_name || winnerUser.username || 'A Player';
 
@@ -753,8 +761,11 @@ function initGameHandler(io) {
               type: 'WINNING_PAYOUT'
             });
             console.log(`[PAYOUT] Credited ${payoutPerWinner} to winner ${winnerUser.id}`);
-            if (winnerUser.referred_by) {
-              referredWinners.push({ inviteeId: winnerUser.id, inviterId: winnerUser.referred_by })
+            if (winnerUser.referred_by && winnerUser.referred_by !== winnerUser.id) {
+              referredWinners.push({
+                inviteeId: winnerUser.id,
+                inviterId: winnerUser.referred_by,
+              })
             }
           }
 
@@ -765,46 +776,43 @@ function initGameHandler(io) {
 
             for (const [index, referredWinner] of referredWinners.entries()) {
               const commissionCents = baseCommissionCents + (index < remainderCents ? 1 : 0)
+              if (commissionCents <= 0) continue
               const commission = commissionCents / 100
-              if (commission <= 0) continue
+              const inviter = await trx('users')
+                .select('id', 'referral_balance')
+                .where({ id: referredWinner.inviterId })
+                .first()
+              if (!inviter) continue
 
               await trx('users')
-                .where({ id: referredWinner.inviterId })
+                .where({ id: inviter.id })
                 .increment('referral_balance', commission)
+              const priorBalance = referralBalanceUpdatesCents.has(inviter.id)
+                ? referralBalanceUpdatesCents.get(inviter.id)
+                : Math.round(Number(inviter.referral_balance || 0) * 100)
+              referralBalanceUpdatesCents.set(inviter.id, priorBalance + commissionCents)
               await trx('referral_earnings').insert({
-                inviter_id: referredWinner.inviterId,
+                inviter_id: inviter.id,
                 invitee_id: referredWinner.inviteeId,
                 room_id: roomId,
+                game_id: roomId,
                 amount: commission,
               })
               await trx('financial_ledger').insert({
-                user_id: referredWinner.inviterId,
+                user_id: inviter.id,
                 amount: commission,
                 type: 'referral_commission',
-                reference: `Locked referral commission for room ${roomId}`,
+                reference: `Referral commission for room ${roomId}`,
               })
-
-              const inviter = await trx('users').where({ id: referredWinner.inviterId }).first()
-              if (inviter) {
-                referralWalletUpdates.push({
-                  userId: inviter.id,
-                  newBalance: Number(inviter.wallet_balance),
-                  referralBalance: Number(inviter.referral_balance),
-                })
-              }
             }
           }
           await trx('game_rooms').where({ id: roomId }).update({ status: 'ENDED' });
         });
 
-        for (const update of referralWalletUpdates) {
-          const userRoom = `user_${update.userId}`
-          if (io.sockets.adapter.rooms.get(userRoom)?.size) {
-            io.to(userRoom).emit('wallet_updated', {
-              newBalance: update.newBalance,
-              referralBalance: update.referralBalance,
-            })
-          }
+        for (const [inviterId, referralBalanceCents] of referralBalanceUpdatesCents) {
+          io.to(`user_${inviterId}`).emit('wallet_updated', {
+            referralBalance: referralBalanceCents / 100,
+          })
         }
 
         // Emit game over to everyone

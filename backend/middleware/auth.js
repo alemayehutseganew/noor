@@ -20,7 +20,19 @@ async function userAuth(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
-  const user = await db('users').where({ id: payload.id }).first()
+  const user = await db('users')
+    .select(
+      'id',
+      'telegram_id',
+      'username',
+      'first_name',
+      'phone_number',
+      'wallet_balance',
+      'language',
+      'created_at'
+    )
+    .where({ id: payload.id })
+    .first()
   if (!user) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
