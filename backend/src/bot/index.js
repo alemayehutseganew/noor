@@ -5,7 +5,7 @@ const db = require('../db')
 const { parseTelebirrSMS, creditVerifiedDeposit } = require('../services/paymentService')
 const { getT } = require('./translations')
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sale-green.vercel.app/'
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://noor-one-beta.vercel.app/'
 const userStates = {}
 let commandRegistrationPromise
 let botInfoPromise
