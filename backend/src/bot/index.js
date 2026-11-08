@@ -205,8 +205,7 @@ async function showInvite(ctx) {
       startPayload = `i_${telegramId}`
     }
 
-    // Hardcode your bot's exact username here to prevent network hanging errors
-    const botUsername = 'GoBingoKedirobot' 
+    const botUsername = (process.env.BOT_USERNAME || 'GoBingoBot').replace(/^@/, '')
     const refLink = `https://t.me/${botUsername}?start=${encodeURIComponent(startPayload)}`
 
     const shareText = botText(lang, 'shareText')
@@ -251,6 +250,40 @@ bot.start(async (ctx) => {
 bot.action('show_invite', async (ctx) => {
   await ctx.answerCbQuery().catch(() => {})
   return showInvite(ctx)
+})
+
+bot.on('inline_query', async (ctx) => {
+  // The frontend sends "start=@username" or "start=telegram_id"
+  const query = ctx.inlineQuery.query.trim().replace(/^start=/, '')
+
+  let startPayload = ''
+  if (query.startsWith('@')) {
+    startPayload = `u_${query.slice(1)}`
+  } else if (/^\d+$/.test(query)) {
+    startPayload = `i_${query}`
+  } else {
+    return ctx.answerInlineQuery([], { cache_time: 0 })
+  }
+
+  const botUsername = (process.env.BOT_USERNAME || 'GoBingoBot').replace(/^@/, '')
+  const refLink = `https://t.me/${botUsername}?start=${encodeURIComponent(startPayload)}`
+  const frontendUrl = process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL
+
+  await ctx.answerInlineQuery([{
+    type: 'article',
+    id: 'gobingo-referral',
+    title: 'Play GoBingo! 🎰',
+    description: 'Tap to join the game and win big!',
+    input_message_content: {
+      message_text: `🎰 Join me on GoBingo and win big!\n${refLink}`,
+      disable_web_page_preview: true
+    },
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: '🎮 Play Now', url: refLink }]
+      ]
+    }
+  }], { cache_time: 0 })
 })
 
 bot.action('lang_en', async (ctx) => {
