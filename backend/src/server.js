@@ -67,19 +67,19 @@ app.disable('x-powered-by')
 app.set('trust proxy', 1) // Enzonic sits behind a proxy (needed for correct req.ip / rate limits)
 
 // --- CORS ---
-const configuredOrigins = [
+const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'https://noor-one-beta.vercel.app',
-  'https://noor.ezonic.dev',
-  process.env.FRONTEND_URL
+  'https://noor.enzonic.dev',
+  process.env.FRONTEND_URL?.replace(/\/+$/, '')
 ].filter(Boolean)
 
 const corsOptions = {
   origin: (origin, callback) => {
     // Allow server-to-server / curl / Telegram WebView requests with no Origin header
     if (!origin) return callback(null, true)
-    if (configuredOrigins.includes(origin)) return callback(null, true)
+    if (allowedOrigins.includes(origin)) return callback(null, true)
     // Allow Vercel preview deployments (e.g. frontend-git-branch.vercel.app)
     if (origin.endsWith('.vercel.app')) return callback(null, true)
     console.log('Blocked by CORS:', origin)

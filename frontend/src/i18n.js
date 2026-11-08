@@ -5,6 +5,9 @@ const resources = {
   en: {
     translation: {
       chooseStake: 'Please Choose Your Stake',
+      referral_banner_title: 'Invite Friends, Earn 5%!',
+      referral_banner_subtitle: 'Get 5% of their winnings. Withdraw at 1,000 ETB.',
+      referral_banner_btn: 'Invite Now',
       stake: 'Stake',
       active: 'Active',
       possibleWin: 'Possible Win',
@@ -181,6 +184,9 @@ const resources = {
   am: {
     translation: {
       chooseStake: 'እባክዎ የጨዋታ ውለታዎን ይምረጡ',
+      referral_banner_title: 'ጓደኞችዎን ይጋብዙ፣ 5% ያግቡ!',
+      referral_banner_subtitle: 'ከሚያሸንፉት ገንዘብ 5% ያግኙ። በ1,000 ብር ማውጣት ይችላሉ።',
+      referral_banner_btn: 'አሁን ጋብዝ',
       stake: 'ውለታ',
       active: 'ንቁ',
       possibleWin: 'ሊያሸንፉ የሚችሉት',
