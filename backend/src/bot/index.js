@@ -19,6 +19,11 @@ bot.use((ctx, next) => {
   return next()
 })
 
+bot.on('message', (ctx, next) => {
+  console.log('[BOT TRACE] Incoming message:', ctx.message.text || 'non-text message')
+  return next()
+})
+
 bot.catch((err, ctx) => {
   console.error(`[BOT] Error for ${ctx.updateType}:`, err.message)
 })
@@ -165,57 +170,6 @@ bot.start(async (ctx) => {
   }
 })
 
-bot.command(['invite', 'referral'], async (ctx) => {
-  delete userStates[ctx.from.id]
-  await showInvite(ctx)
-})
-
-bot.action('show_invite', async (ctx) => {
-  delete userStates[ctx.from.id]
-  await ctx.answerCbQuery().catch(() => {})
-  await showInvite(ctx)
-})
-
-bot.on('inline_query', async (ctx) => {
-  const telegramId = ctx.from.id
-  const startPayload = `ref_${telegramId}`
-  const botUsername = (process.env.BOT_USERNAME || 'YogaBingoBot').replace(/^@/, '')
-  const referralUrl = `https://t.me/${botUsername}?start=${startPayload}`
-  return ctx.answerInlineQuery([{
-    type: 'article',
-    id: 'referral-card',
-    title: '🎰 Play GoBingo!',
-    description: 'Tap to join the game and win big!',
-    input_message_content: {
-      message_text: `🎰 Join me on GoBingo and win big!\n${referralUrl}`,
-      disable_web_page_preview: true,
-    },
-    reply_markup: {
-      inline_keyboard: [[{ text: '🎮 Play Now', url: referralUrl }]],
-    },
-  }], { cache_time: 0 })
-})
-
-bot.action('lang_en', async (ctx) => {
-  await ctx.answerCbQuery().catch(() => {})
-  try {
-    await db('users').where({ telegram_id: ctx.from.id }).update({ language: 'en' })
-  } catch (err) {
-    console.error('Failed to set English language:', err.message)
-  }
-  ctx.reply(getT('en').lang_set_en, getMainMenu('en')).catch(() => {})
-})
-
-bot.action('lang_am', async (ctx) => {
-  await ctx.answerCbQuery().catch(() => {})
-  try {
-    await db('users').where({ telegram_id: ctx.from.id }).update({ language: 'am' })
-  } catch (err) {
-    console.error('Failed to set Amharic language:', err.message)
-  }
-  ctx.reply(getT('am').lang_set_am, getMainMenu('am')).catch(() => {})
-})
-
 bot.command('menu', async (ctx) => {
   const lang = await getUserLanguage(ctx.from.id)
   ctx.reply(getT(lang).main_menu, getMainMenu(lang)).catch(() => {})
@@ -267,6 +221,37 @@ bot.command('withdraw', async (ctx) => {
   ctx.reply(getT(await getUserLanguage(ctx.from.id)).withdraw_prompt).catch(() => {})
 })
 
+bot.command(['invite', 'referral'], async (ctx) => {
+  delete userStates[ctx.from.id]
+  await showInvite(ctx)
+})
+
+bot.action('show_invite', async (ctx) => {
+  delete userStates[ctx.from.id]
+  await ctx.answerCbQuery().catch(() => {})
+  await showInvite(ctx)
+})
+
+bot.action('lang_en', async (ctx) => {
+  await ctx.answerCbQuery().catch(() => {})
+  try {
+    await db('users').where({ telegram_id: ctx.from.id }).update({ language: 'en' })
+  } catch (err) {
+    console.error('Failed to set English language:', err.message)
+  }
+  ctx.reply(getT('en').lang_set_en, getMainMenu('en')).catch(() => {})
+})
+
+bot.action('lang_am', async (ctx) => {
+  await ctx.answerCbQuery().catch(() => {})
+  try {
+    await db('users').where({ telegram_id: ctx.from.id }).update({ language: 'am' })
+  } catch (err) {
+    console.error('Failed to set Amharic language:', err.message)
+  }
+  ctx.reply(getT('am').lang_set_am, getMainMenu('am')).catch(() => {})
+})
+
 bot.action('menu_balance', async (ctx) => {
   const t = getT(await getUserLanguage(ctx.from.id))
   try {
@@ -307,6 +292,26 @@ bot.action('menu_room', async (ctx) => {
 bot.action('menu_help', async (ctx) => {
   await ctx.answerCbQuery().catch(() => {})
   ctx.reply(getT(await getUserLanguage(ctx.from.id)).help_text).catch(() => {})
+})
+
+bot.on('inline_query', async (ctx) => {
+  const telegramId = ctx.from.id
+  const startPayload = `ref_${telegramId}`
+  const botUsername = (process.env.BOT_USERNAME || 'YogaBingoBot').replace(/^@/, '')
+  const referralUrl = `https://t.me/${botUsername}?start=${startPayload}`
+  return ctx.answerInlineQuery([{
+    type: 'article',
+    id: 'referral-card',
+    title: '🎰 Play GoBingo!',
+    description: 'Tap to join the game and win big!',
+    input_message_content: {
+      message_text: `🎰 Join me on GoBingo and win big!\n${referralUrl}`,
+      disable_web_page_preview: true,
+    },
+    reply_markup: {
+      inline_keyboard: [[{ text: '🎮 Play Now', url: referralUrl }]],
+    },
+  }], { cache_time: 0 })
 })
 
 bot.on('contact', async (ctx) => {
@@ -352,13 +357,6 @@ const handleUpdate = async (req, res) => {
     res.status(500).send('Error')
   }
 }
-
-bot.on('message', (ctx, next) => {
-  console.log('[BOT TRACE] Incoming message:', ctx.message.text || 'non-text message')
-  return next()
-})
-
-module.exports = { bot, getMainMenu, handleUpdate }
 
 bot.on('text', async (ctx) => {
   try {
@@ -442,3 +440,5 @@ bot.on('text', async (ctx) => {
     ctx.reply(t.err_general).catch((replyErr) => console.error('Failed to send text-handler error:', replyErr))
   }
 })
+
+module.exports = { bot, getMainMenu, handleUpdate }
