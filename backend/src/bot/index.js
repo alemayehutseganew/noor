@@ -252,40 +252,6 @@ bot.action('show_invite', async (ctx) => {
   return showInvite(ctx)
 })
 
-bot.on('inline_query', async (ctx) => {
-  // The frontend sends "start=@username" or "start=telegram_id"
-  const query = ctx.inlineQuery.query.trim().replace(/^start=/, '')
-
-  let startPayload = ''
-  if (query.startsWith('@')) {
-    startPayload = `u_${query.slice(1)}`
-  } else if (/^\d+$/.test(query)) {
-    startPayload = `i_${query}`
-  } else {
-    return ctx.answerInlineQuery([], { cache_time: 0 })
-  }
-
-  const botUsername = (process.env.BOT_USERNAME || 'GoBingoBot').replace(/^@/, '')
-  const refLink = `https://t.me/${botUsername}?start=${encodeURIComponent(startPayload)}`
-  const frontendUrl = process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL
-
-  await ctx.answerInlineQuery([{
-    type: 'article',
-    id: 'gobingo-referral',
-    title: 'Play GoBingo! 🎰',
-    description: 'Tap to join the game and win big!',
-    input_message_content: {
-      message_text: `🎰 Join me on GoBingo and win big!\n${refLink}`,
-      disable_web_page_preview: true
-    },
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: '🎮 Play Now', url: refLink }]
-      ]
-    }
-  }], { cache_time: 0 })
-})
-
 bot.action('lang_en', async (ctx) => {
   await ctx.answerCbQuery().catch(() => {})
   try { await db('users').where({ telegram_id: ctx.from.id }).update({ language: 'en' }) } catch (e) {}
@@ -306,6 +272,18 @@ bot.command('menu', async (ctx) => {
 bot.command(['invite', 'referral'], async (ctx) => {
   delete userStates[ctx.from.id]
   await showInvite(ctx)
+})
+
+bot.command('deposit', async (ctx) => {
+  const lang = await getUserLanguage(ctx)
+  userStates[ctx.from.id] = 'WAITING_FOR_RECEIPT'
+  ctx.reply(botText(lang, 'depositInstructions', { name: 'Kenaw Nuru Muhabe', phone: '0989002307' })).catch(() => {})
+})
+
+bot.command('withdraw', async (ctx) => {
+  const lang = await getUserLanguage(ctx)
+  userStates[ctx.from.id] = 'WAITING_FOR_WITHDRAW_AMOUNT'
+  ctx.reply(botText(lang, 'withdrawPrompt')).catch(() => {})
 })
 
 bot.command('play', async (ctx) => {
@@ -339,18 +317,6 @@ bot.command('register', async (ctx) => {
       [Markup.button.contactRequest(botText(lang, 'sharePhone'))]
     ]).resize().oneTime()
   )
-})
-
-bot.command('deposit', async (ctx) => {
-  const lang = await getUserLanguage(ctx)
-  userStates[ctx.from.id] = 'WAITING_FOR_RECEIPT'
-  ctx.reply(botText(lang, 'depositInstructions', { name: 'Kenaw Nuru Muhabe', phone: '0989002307' })).catch(() => {})
-})
-
-bot.command('withdraw', async (ctx) => {
-  const lang = await getUserLanguage(ctx)
-  userStates[ctx.from.id] = 'WAITING_FOR_WITHDRAW_AMOUNT'
-  ctx.reply(botText(lang, 'withdrawPrompt')).catch(() => {})
 })
 
 bot.action('menu_balance', async (ctx) => {
@@ -395,6 +361,40 @@ bot.action('menu_help', async (ctx) => {
   ctx.reply(botText(lang, 'helpMessage')).catch(() => {})
 })
 
+bot.on('inline_query', async (ctx) => {
+  // The frontend sends "start=@username" or "start=telegram_id"
+  const query = ctx.inlineQuery.query.trim().replace(/^start=/, '')
+
+  let startPayload = ''
+  if (query.startsWith('@')) {
+    startPayload = `u_${query.slice(1)}`
+  } else if (/^\d+$/.test(query)) {
+    startPayload = `i_${query}`
+  } else {
+    return ctx.answerInlineQuery([], { cache_time: 0 })
+  }
+
+  const botUsername = (process.env.BOT_USERNAME || 'GoBingoBot').replace(/^@/, '')
+  const refLink = `https://t.me/${botUsername}?start=${encodeURIComponent(startPayload)}`
+  const frontendUrl = process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL
+
+  await ctx.answerInlineQuery([{
+    type: 'article',
+    id: 'gobingo-referral',
+    title: 'Play GoBingo! 🎰',
+    description: 'Tap to join the game and win big!',
+    input_message_content: {
+      message_text: `🎰 Join me on GoBingo and win big!\n${refLink}`,
+      disable_web_page_preview: true
+    },
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: '🎮 Play Now', url: refLink }]
+      ]
+    }
+  }], { cache_time: 0 })
+})
+
 bot.on('contact', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   try {
@@ -434,7 +434,7 @@ bot.on('text', async (ctx) => {
   try {
     const text = ctx.message.text
     
-    // STRICT GUARD: Completely ignore anything starting with a slash
+    // STRICT GUARD: Ignore commands entirely
     if (text && text.startsWith('/')) {
       return
     }
