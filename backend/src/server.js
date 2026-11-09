@@ -106,6 +106,10 @@ app.use((req, res, next) => {
 app.disable('x-powered-by')
 app.set('trust proxy', 1) // Enzonic sits behind a proxy (needed for correct req.ip / rate limits)
 
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
 app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => {
   console.log('[SERVER TRACE] Telegram update received')
   res.sendStatus(200)
@@ -116,11 +120,6 @@ app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => {
       console.error('[WEBHOOK ASYNC ERROR]:', err)
     })
   })
-})
-
-// --- Health check ---
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
 // --- API routes ---
