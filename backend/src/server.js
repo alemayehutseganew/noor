@@ -53,6 +53,30 @@ const app = express()
 const server = http.createServer(app)
 let io
 
+const allowedOrigins = [
+  'https://noor-one-beta.vercel.app',
+  'https://noor.enzonic.dev',
+  'http://localhost:5173'
+]
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true)
+
+    if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.vercel.app')) {
+      callback(null, true)
+    } else {
+      callback(new Error('Not allowed by CORS'))
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}
+
+app.use(cors(corsOptions))
+app.options(/.*/, cors(corsOptions))
+
 function lazyRouter(modulePath) {
   let router
   return (req, res, next) => {
@@ -74,32 +98,6 @@ app.use((req, res, next) => {
 app.disable('x-powered-by')
 app.set('trust proxy', 1) // Enzonic sits behind a proxy (needed for correct req.ip / rate limits)
 
-// --- CORS ---
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'https://noor-one-beta.vercel.app',
-  'https://noor.enzonic.dev',
-  process.env.FRONTEND_URL?.replace(/\/+$/, '')
-].filter(Boolean)
-
-const corsOptions = {
-  origin: (origin, callback) => {
-    // Allow server-to-server / curl / Telegram WebView requests with no Origin header
-    if (!origin) return callback(null, true)
-    if (allowedOrigins.includes(origin)) return callback(null, true)
-    // Allow Vercel preview deployments (e.g. frontend-git-branch.vercel.app)
-    if (origin.endsWith('.vercel.app')) return callback(null, true)
-    console.log('Blocked by CORS:', origin)
-    return callback(new Error('Not allowed by CORS'))
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'x-admin-seed-token']
-}
-
-// cors() already answers OPTIONS preflight requests — no app.options() needed.
-app.use(cors(corsOptions))
 app.use(express.json({ limit: '1mb' }))
 
 app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => {
