@@ -44,7 +44,6 @@ if (missingVars.length > 0) {
 }
 
 const express = require('express')
-const cors = require('cors')
 const http = require('http')
 const db = require('./db')
 const { bot } = require('./bot/index')
@@ -57,31 +56,31 @@ const allowedOrigins = [
   'http://localhost:5173'
 ]
 
-const corsOptions = {
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true)
-
-    if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.vercel.app')) {
-      callback(null, true)
-    } else {
-      callback(new Error('Not allowed by CORS'))
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Access-Control-Allow-Origin'],
-  preflightContinue: true
-}
-
-app.use(cors(corsOptions))
-
 app.use((req, res, next) => {
+  const origin = req.headers.origin
+  const isAllowedOrigin = !origin ||
+    allowedOrigins.includes(origin) ||
+    origin.endsWith('.vercel.app')
+
+  if (isAllowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', origin || allowedOrigins[0])
+    res.setHeader('Access-Control-Allow-Credentials', 'true')
+    res.setHeader('Vary', 'Origin')
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH')
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Custom-Header, Upgrade-Insecure-Requests'
+  )
+
   if (req.method === 'OPTIONS') {
-    console.log(`[CORS PREFLIGHT] Received OPTIONS request for: ${req.url}`)
-    return res.sendStatus(204)
+    console.log(`[CORS] Intercepted OPTIONS preflight for: ${req.url}`)
+    return res.status(200).json({ status: 'preflight ok' })
   }
   next()
 })
+
+app.use(express.json({ limit: '1mb' }))
 
 const server = http.createServer(app)
 let io
@@ -106,8 +105,6 @@ app.use((req, res, next) => {
 // --- App hardening ---
 app.disable('x-powered-by')
 app.set('trust proxy', 1) // Enzonic sits behind a proxy (needed for correct req.ip / rate limits)
-
-app.use(express.json({ limit: '1mb' }))
 
 app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => {
   console.log('[SERVER TRACE] Telegram update received')
