@@ -1,5 +1,5 @@
-export const API_BASE_URL = import.meta.env.VITE_API_URL;
-export const SOCKET_BASE_URL = import.meta.env.VITE_SOCKET_URL;
+export const API_BASE_URL = '/api';
+export const SOCKET_BASE_URL = '/';
 
 export const fetchApi = async (endpoint, options = {}, retries = 3) => {
   const token = localStorage.getItem('token')
