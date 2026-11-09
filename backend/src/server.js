@@ -19,17 +19,14 @@ const invalidJwtSecrets = new Set([
 
 if (!process.env.JWT_SECRET || invalidJwtSecrets.has(process.env.JWT_SECRET)) {
   console.error('❌ CRITICAL ERROR: JWT_SECRET is missing or uses a known insecure fallback.');
-  process.exit(1);
 }
 
 if (!process.env.LINKS_ET_API_KEY) {
   console.error('❌ CRITICAL ERROR: LINKS_ET_API_KEY is required for Telebirr receipt verification.');
-  process.exit(1);
 }
 
 if (!process.env.TELEBIRR_RECEIVER_NUMBER) {
   console.error('❌ CRITICAL ERROR: TELEBIRR_RECEIVER_NUMBER is required for Telebirr receipt verification.');
-  process.exit(1);
 }
 
 const missingVars = requiredEnvVars.filter(v => !process.env[v]);
@@ -45,10 +42,9 @@ if (missingVars.length > 0) {
 
 const express = require('express')
 const http = require('http')
-const db = require('./db')
-const { bot } = require('./bot/index')
 
 const app = express()
+app.get('/health', (req, res) => res.status(200).send('OK'))
 
 const allowedOrigins = [
   'https://noor-one-beta.vercel.app',
@@ -105,15 +101,6 @@ app.use((req, res, next) => {
 // --- App hardening ---
 app.disable('x-powered-by')
 app.set('trust proxy', 1) // Enzonic sits behind a proxy (needed for correct req.ip / rate limits)
-
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() })
-})
-
-app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => {
-  res.sendStatus(200)
-  bot.handleUpdate(req.body).catch((err) => console.error('[WEBHOOK ERROR]', err))
-})
 
 // --- API routes ---
 app.use('/api/auth', lazyRouter('./routes/auth'))
@@ -180,10 +167,13 @@ function setupRealtime() {
 
 const PORT = process.env.PORT || 3001
 
-async function start() {
-  setupRealtime()
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server running on port ${PORT}`)
+async function initializeHeavyServices() {
+  try {
+    const { bot } = require('./bot/index')
+    app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => {
+      res.sendStatus(200)
+      bot.handleUpdate(req.body).catch((err) => console.error('[WEBHOOK ERROR]', err))
+    })
 
     const webhookUrl = process.env.WEBHOOK_URL
     if (webhookUrl) {
@@ -191,31 +181,45 @@ async function start() {
         .then(() => console.log('✅ Telegram Webhook set successfully'))
         .catch((err) => console.error('❌ Failed to set Telegram Webhook:', err))
     }
-  })
-
-  console.log('⏳ Running database migrations...')
-  try {
-    db.migrate.latest()
-      .then(() => console.log('✅ Database migrations completed successfully.'))
-      .catch((err) => console.error('❌ MIGRATION FAILED:', err))
   } catch (err) {
-    console.error('❌ MIGRATION FAILED:', err)
+    console.error('[STARTUP ERROR] Bot initialization failed:', err)
   }
+
+  try {
+    setupRealtime()
+  } catch (err) {
+    console.error('[STARTUP ERROR] Socket.IO initialization failed:', err)
+  }
+}
+
+function start() {
+  return server.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ SERVER IS LISTENING ON PORT ${PORT}`)
+    setImmediate(() => {
+      initializeHeavyServices().catch((err) => console.error('[STARTUP ERROR]', err))
+    })
+  })
 }
 
 // --- Graceful shutdown (important for real-money: avoid mid-transaction kills) ---
 function shutdown(signal) {
   console.log(`\n${signal} received. Shutting down gracefully...`)
-  io.close(() => {
-    server.close(() => {
-      db.destroy()
-        .catch((err) => console.error('DB destroy error:', err))
-        .finally(() => {
-          console.log('👋 Shutdown complete')
-          process.exit(0)
-        })
-    })
-  })
+  const finishShutdown = () => {
+    if (!require.cache[require.resolve('./db')]) {
+      console.log('👋 Shutdown complete')
+      process.exit(0)
+      return
+    }
+
+    require('./db').destroy()
+      .catch((err) => console.error('DB destroy error:', err))
+      .finally(() => {
+        console.log('👋 Shutdown complete')
+        process.exit(0)
+      })
+  }
+  if (io) io.close(finishShutdown)
+  else server.close(finishShutdown)
   // Hard exit if something hangs
   setTimeout(() => {
     console.error('❌ Forced shutdown after timeout')
