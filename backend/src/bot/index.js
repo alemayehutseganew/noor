@@ -27,7 +27,26 @@ const botTranslations = {
     balance: '💰 Your current balance is: ETB {{amount}}',
     userNotFound: 'User not found. Please open the Mini App first to register.',
     balanceFailed: '❌ Failed to fetch balance.',
-    helpMessage: '📖 How to Play GOBINGO\n\n1. Open the Mini App.\n2. Select a stake.\n3. Choose a card.\n4. Wait for game start.\n5. Tap numbers when called.\n6. Complete a line and press BINGO!\n\nGood luck!\n\nFor more support: https://t.me/Knoor1221',
+    helpMessage: `✅ Game Card
+1. To start the game, select a Bingo card from the 1-400 card selection board.
+2. Inactive numbers on the board mean the card has already been selected by another player.
+3. When you select a card, it will show the numbers at the bottom.
+4. When the countdown timer reaches zero, you will automatically enter the game.
+
+✅ How the game is played
+1. After entering the game, you will find your selected card on the right side.
+2. When the game starts, the system will randomly call numbers from 1 to 75.
+3. From the numbers called by the system, select and mark (shade) the ones that match your card.
+
+🏆 Ways to win
+1. Based on the marked numbers on your card:
+• Complete a horizontal or vertical line.
+• Complete a diagonal line.
+• Mark all four corners.
+
+✅ If there is more than one winner, the prize pool is split among them.
+
+For more support: @saleg122`,
     registerPrompt: 'To complete your registration, please share your phone number:',
     sharePhone: '📱 Share Phone Number',
     depositInstructions: '💳 To Deposit:\n\n👤 Name: {{name}}\n📱 Telebirr: {{phone}}\n\n1. Open your Telebirr app\n2. Send money to the number above\n3. Copy the SMS you receive\n\n👇 Now paste the full SMS here:\n\nFor more support: https://t.me/Knoor1221',
@@ -70,7 +89,26 @@ const botTranslations = {
     balance: '💰 የአሁኑ ቀሪ ሂሳብዎ፦ {{amount}} ብር',
     userNotFound: 'ተጠቃሚው አልተገኘም። ለመመዝገብ መጀመሪያ ሚኒ አፑን ይክፈቱ።',
     balanceFailed: '❌ ቀሪ ሂሳብን ማምጣት አልተሳካም።',
-    helpMessage: '📖 ጎቢንጎን እንዴት መጫወት ይቻላል\n\n1. ሚኒ አፑን ይክፈቱ።\n2. የውለታ መጠን ይምረጡ።\n3. ካርድ ይምረጡ።\n4. ጨዋታው እስኪጀምር ይጠብቁ።\n5. ቁጥሮች ሲጠሩ ይንኩ።\n6. መስመር አሟልተው BINGO! ይጫኑ።\n\nመልካም ዕድል!\n\nለተጨማሪ ድጋፍ፦ https://t.me/Knoor1221',
+    helpMessage: `✅ መጫወቻ ካርድ
+1. ጨዋታውን ለመጀመር ከ1-400 የካርድ መምረጫ ቦርድ ውስጥ አንድ የመጫወቻ ካርድ (ካርቴላ) ይምረጡ።
+2. የካርድ መምረጫ ቦርድ ላይ Inactive ቁጥሮች የሚያሳዩት መጫወቻ ካርዱ (ካርቴላው) በሌላ ተጫዋች መመረጡን ነው።
+3. የመጫወቻ ካርዱን (ካርቴላውን) ሲመርጡት ከታች የሚይዛቸውን ቁጥሮች ያሳያል።
+4. ወደ ጨዋታው ለመግባት ለምዝገባ የተሰጠው ሰኮንድ ዜሮ ሲሆን ቀጥታ ወደ ጨዋታ ያስገባል።
+
+✅ ጨዋታ እንዴት ይካሄዳል
+1. ወደ ጨዋታው ከገቡ በኋላ በመረጡት የመጫወቻ ካርድ (ካርቴላ) በቀኝ በኩል ያገኙታል።
+2. ጨዋታው ሲጀምር ሲስተሙ ከ1 እስከ 75 ያሉ ቁጥሮችን Randomly መጥራት ይጀምራል።
+3. ሲስተሙ ከሚጠራቸው ቁጥሮች ውስጥ በራስዎ የመጫወቻ ካርድ (ካርቴላ) ላይ ካሉ በመምረጥ ያጥቁሩ።
+
+🏆 አሸናፊ የሚሆኑባቸው መንገዶች
+1. መጫወቻ ካርድ (ካርቴላ) ላይ የተጠቆሩት ቁጥሮች፦
+• ወደጎን ወይም ወደታች መስመር ከሰሩ
+• ወደሁለቱም አግዳሚ (Diagonal) መስመር ከሰሩ
+• አራቱ ማእዘናት (ኮርነር) ከተጠሩ አሸናፊ ይሆናሉ።
+
+✅ ከአንድ በላይ አሸናፊ ካለ ደራሽ ገንዘቡን ይከፋፈላሉ።
+
+ለተጨማሪ ድጋፍ፦ @saleg122`,
     registerPrompt: 'ምዝገባዎን ለማጠናቀቅ እባክዎ ስልክ ቁጥርዎን ያጋሩ፦',
     sharePhone: '📱 ስልክ ቁጥር ያጋሩ',
     depositInstructions: '💳 ገንዘብ ለማስገባት፦\n\n👤 ስም፦ {{name}}\n📱 ቴሌብር፦ {{phone}}\n\n1. የቴሌብር መተግበሪያዎን ይክፈቱ።\n2. ከላይ ወደተጠቀሰው ቁጥር ገንዘብ ይላኩ።\n3. የደረሰዎትን ኤስኤምኤስ ኮፒ ያድርጉ።\n\n👇 አሁን ሙሉውን ኤስኤምኤስ እዚህ ይለጥፉ፦\n\nለተጨማሪ ድጋፍ፦ https://t.me/Knoor1221',
