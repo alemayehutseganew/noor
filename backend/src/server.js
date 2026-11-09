@@ -44,13 +44,12 @@ if (missingVars.length > 0) {
 }
 
 const express = require('express')
+const cors = require('cors')
 const http = require('http')
 const db = require('./db')
 const { bot } = require('./bot/index')
 
 const app = express()
-
-const cors = require('cors')
 
 const allowedOrigins = [
   'https://noor-one-beta.vercel.app',
@@ -70,19 +69,16 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Access-Control-Allow-Origin'],
+  preflightContinue: true
 }
 
-// 1. Apply CORS to all requests
 app.use(cors(corsOptions))
 
-// 2. Handle preflight OPTIONS requests (Express 5 syntax)
-app.options(/.*/, cors(corsOptions))
-
-// Log OPTIONS preflight requests for debugging
 app.use((req, res, next) => {
   if (req.method === 'OPTIONS') {
     console.log(`[CORS PREFLIGHT] Received OPTIONS request for: ${req.url}`)
+    return res.sendStatus(204)
   }
   next()
 })
