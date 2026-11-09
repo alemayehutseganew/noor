@@ -44,14 +44,13 @@ if (missingVars.length > 0) {
 }
 
 const express = require('express')
-const cors = require('cors')
 const http = require('http')
 const db = require('./db')
 const { bot } = require('./bot/index')
 
 const app = express()
-const server = http.createServer(app)
-let io
+
+const cors = require('cors')
 
 const allowedOrigins = [
   'https://noor-one-beta.vercel.app',
@@ -74,8 +73,22 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }
 
+// 1. Apply CORS to all requests
 app.use(cors(corsOptions))
+
+// 2. Handle preflight OPTIONS requests (Express 5 syntax)
 app.options(/.*/, cors(corsOptions))
+
+// Log OPTIONS preflight requests for debugging
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    console.log(`[CORS PREFLIGHT] Received OPTIONS request for: ${req.url}`)
+  }
+  next()
+})
+
+const server = http.createServer(app)
+let io
 
 function lazyRouter(modulePath) {
   let router
