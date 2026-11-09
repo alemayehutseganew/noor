@@ -28,6 +28,7 @@ const botTranslations = {
     balance: '💰 Your current balance is: ETB {{amount}}',
     userNotFound: 'User not found. Please open the Mini App first to register.',
     balanceFailed: '❌ Failed to fetch balance.',
+    systemBusy: '⏳ The system is currently busy. Please try again in a few seconds.',
     helpMessage: `✅ Game Card
 1. To start the game, select a Bingo card from the 1-400 card selection board.
 2. Inactive numbers on the board mean the card has already been selected by another player.
@@ -91,6 +92,7 @@ For more support: @saleg122`,
     balance: '💰 የአሁኑ ቀሪ ሂሳብዎ፦ {{amount}} ብር',
     userNotFound: 'ተጠቃሚው አልተገኘም። ለመመዝገብ መጀመሪያ ሚኒ አፑን ይክፈቱ።',
     balanceFailed: '❌ ቀሪ ሂሳብን ማምጣት አልተሳካም።',
+    systemBusy: '⏳ ስርዓቱ አሁን በስራ ላይ ነው። እባክዎ ከጥቂት ሰከንዶች በኋላ እንደገና ይሞክሩ።',
     helpMessage: `✅ መጫወቻ ካርድ
 1. ጨዋታውን ለመጀመር ከ1-400 የካርድ መምረጫ ቦርድ ውስጥ አንድ የመጫወቻ ካርድ (ካርቴላ) ይምረጡ።
 2. የካርድ መምረጫ ቦርድ ላይ Inactive ቁጥሮች የሚያሳዩት መጫወቻ ካርዱ (ካርቴላው) በሌላ ተጫዋች መመረጡን ነው።
@@ -249,9 +251,10 @@ function getMainMenu(lang = 'en') {
 }
 
 async function showInvite(ctx) {
+  let lang = 'en'
   try {
     console.log('[INVITE] Generating link for:', ctx.from.id)
-    const lang = await getUserLanguage(ctx)
+    lang = await getUserLanguage(ctx)
 
     const username = ctx.from?.username || null
     const telegramId = ctx.from?.id
@@ -281,8 +284,8 @@ async function showInvite(ctx) {
     })
     console.log('[INVITE] Link sent successfully')
   } catch (err) {
-    console.error('[INVITE] Crash:', err)
-    return replyWithSupport(ctx, `❌ Error: ${err.message}`).catch(() => {})
+    console.error('[INVITE] Failed to generate invite:', err.message)
+    return replyWithSupport(ctx, botText(lang, 'systemBusy')).catch(() => {})
   }
 }
 
@@ -332,7 +335,8 @@ bot.command('balance', async (ctx) => {
     if (user) replyWithSupport(ctx, botText(lang, 'balance', { amount: Number(user.wallet_balance || 0).toFixed(2) })).catch(() => {})
     else replyWithSupport(ctx, botText(lang, 'userNotFound')).catch(() => {})
   } catch (e) {
-    replyWithSupport(ctx, botText(lang, 'balanceFailed')).catch(() => {})
+    console.error('[DB ERROR] Balance fetch failed:', e.message)
+    replyWithSupport(ctx, botText(lang, 'systemBusy')).catch(() => {})
   }
 })
 

@@ -35,6 +35,7 @@ export default function Lobby() {
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [connectionError, setConnectionError] = useState('')
 
   const toggleLanguage = () => {
     changeLanguage(i18n.language === 'en' ? 'am' : 'en')
@@ -77,6 +78,7 @@ export default function Lobby() {
 
         const data = await response.json()
         if (!isActive) return
+        setConnectionError('')
         if (!Array.isArray(data.cards) || data.cards.length === 0) {
           localStorage.removeItem('activeGameRoom')
           return
@@ -85,7 +87,10 @@ export default function Lobby() {
         const stake = Number(activeRoom.stake) || 10
         navigate(`/game?roomId=${encodeURIComponent(activeRoom.roomId)}&stake=${stake}`)
       } catch (err) {
-        if (isActive) console.error('Failed to restore active game room:', err)
+        if (isActive) {
+          console.error('Failed to restore active game room:', err)
+          setConnectionError('Connection slow. Please refresh.')
+        }
       }
     }
 
@@ -94,10 +99,23 @@ export default function Lobby() {
   }, [navigate])
 
   useEffect(() => {
-    refreshBalance().catch((err) => console.error('Failed to refresh wallet balance:', err))
-    const onFocus = () => refreshBalance().catch((err) => console.error('Failed to refresh wallet balance:', err))
+    let isActive = true
+    const updateBalance = async () => {
+      try {
+        await refreshBalance()
+        if (isActive) setConnectionError('')
+      } catch (err) {
+        console.error('Failed to refresh wallet balance:', err)
+        if (isActive) setConnectionError('Connection slow. Please refresh.')
+      }
+    }
+    updateBalance()
+    const onFocus = () => updateBalance()
     window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
+    return () => {
+      isActive = false
+      window.removeEventListener('focus', onFocus)
+    }
   }, [refreshBalance])
 
   const handleJoin = async (stake) => {
@@ -163,6 +181,9 @@ export default function Lobby() {
       {/* Main Content */}
       <div className="relative z-10 flex-1 px-4 pb-10">
         <ReferralPromo />
+        {connectionError && (
+          <p role="alert" className="text-center text-red-400 mb-4">{connectionError}</p>
+        )}
         <h2 className="text-center text-xl font-bold text-white mb-6">
           {t('chooseStake')}
         </h2>
