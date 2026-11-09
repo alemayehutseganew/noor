@@ -98,8 +98,11 @@ app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => {
   console.log('[SERVER TRACE] Telegram update received')
   res.sendStatus(200)
 
-  bot.handleUpdate(req.body).catch((err) => {
-    console.error('[WEBHOOK ASYNC ERROR]:', err)
+  const update = req.body
+  setImmediate(() => {
+    bot.handleUpdate(update).catch((err) => {
+      console.error('[WEBHOOK ASYNC ERROR]:', err)
+    })
   })
 })
 
@@ -211,8 +214,8 @@ process.on('uncaughtException', (err) => {
   console.error('❌ UNCAUGHT EXCEPTION:', err);
   process.exit(1);
 });
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ UNHANDLED REJECTION at:', promise, 'reason:', reason);
+process.on('unhandledRejection', (err) => {
+  console.error('[UNHANDLED REJECTION]:', err);
 });
 
 start()
