@@ -179,15 +179,15 @@ try {
   }).then(() => console.log('✅ Menu button forced to COMMANDS mode')).catch(console.error)
 
   bot.telegram.setMyCommands([
-    { command: 'start', description: 'Start' },
-    { command: 'balance', description: 'balance' },
-    { command: 'invite', description: 'Get your referral link to earn 5%' },
-    { command: 'deposit', description: 'Deposit' },
-    { command: 'withdraw', description: 'Withdraw' },
+    { command: 'start', description: 'start' },
+    { command: 'play', description: 'play' },
+    { command: 'invite', description: 'invite' },
     { command: 'menu', description: 'menu' },
-    { command: 'play', description: 'Play' },
-    { command: 'help', description: 'Help' },
-    { command: 'register', description: 'Register' }
+    { command: 'balance', description: 'balance' },
+    { command: 'deposit', description: 'deposit' },
+    { command: 'withdraw', description: 'withdraw' },
+    { command: 'register', description: 'register' },
+    { command: 'help', description: 'help' }
   ]).then(() => console.log('✅ Commands registered')).catch(console.error)
 } catch (e) {
   console.error('Bot setup error:', e)
