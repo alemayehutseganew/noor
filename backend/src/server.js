@@ -44,7 +44,8 @@ const express = require('express')
 const http = require('http')
 
 const app = express()
-app.get('/health', (req, res) => res.status(200).send('OK'))
+
+const cors = require('cors')
 
 const allowedOrigins = [
   'https://noor-one-beta.vercel.app',
@@ -52,29 +53,35 @@ const allowedOrigins = [
   'http://localhost:5173'
 ]
 
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true)
+    if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.vercel.app')) {
+      callback(null, true)
+    } else {
+      callback(new Error('Not allowed by CORS'))
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}
+
+// 1. Apply CORS to all requests
+app.use(cors(corsOptions))
+
+// 2. Handle preflight OPTIONS requests (Express 5 syntax)
+app.options(/.*/, cors(corsOptions))
+
+// Log OPTIONS preflight requests for debugging
 app.use((req, res, next) => {
-  const origin = req.headers.origin
-  const isAllowedOrigin = !origin ||
-    allowedOrigins.includes(origin) ||
-    origin.endsWith('.vercel.app')
-
-  if (isAllowedOrigin) {
-    res.setHeader('Access-Control-Allow-Origin', origin || allowedOrigins[0])
-    res.setHeader('Access-Control-Allow-Credentials', 'true')
-    res.setHeader('Vary', 'Origin')
-  }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH')
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Custom-Header, Upgrade-Insecure-Requests'
-  )
-
   if (req.method === 'OPTIONS') {
-    console.log(`[CORS] Intercepted OPTIONS preflight for: ${req.url}`)
-    return res.status(200).json({ status: 'preflight ok' })
+    console.log(`[CORS PREFLIGHT] Received OPTIONS request for: ${req.url}`)
   }
   next()
 })
+
+app.get('/health', (req, res) => res.status(200).send('OK'))
 
 app.use(express.json({ limit: '1mb' }))
 
