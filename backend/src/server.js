@@ -110,17 +110,7 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
-app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => {
-  console.log('[SERVER TRACE] Telegram update received')
-  res.sendStatus(200)
-
-  const update = req.body
-  setImmediate(() => {
-    bot.handleUpdate(update).catch((err) => {
-      console.error('[WEBHOOK ASYNC ERROR]:', err)
-    })
-  })
-})
+app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => bot.handleUpdate(req.body, res))
 
 // --- API routes ---
 app.use('/api/auth', lazyRouter('./routes/auth'))

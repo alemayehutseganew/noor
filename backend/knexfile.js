@@ -40,17 +40,7 @@ module.exports = {
   development: buildConfig(),
   production: {
     client: 'pg',
-    connection: {
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false }
-    },
-    pool: {
-      min: 0,
-      max: 1,
-      acquireTimeoutMillis: 30000,
-      idleTimeoutMillis: 5000,
-      createTimeoutMillis: 30000
-    },
+    connection: process.env.DATABASE_URL,
     migrations: {
       directory: './migrations'
     }
