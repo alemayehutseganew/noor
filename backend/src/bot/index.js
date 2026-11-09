@@ -8,6 +8,7 @@ const {
 } = require('../services/paymentService')
 
 const userStates = {}
+const SUPPORT_URL = 'https://t.me/Knoor1221'
 const botTranslations = {
   en: {
     selectLanguage: 'Please select your language:',
@@ -169,6 +170,33 @@ function botText(lang, key, values = {}) {
   )
 }
 
+function withSupport(text) {
+  const message = text.trimEnd()
+  return message.endsWith(SUPPORT_URL) ? message : `${message}\n\n${SUPPORT_URL}`
+}
+
+function withSupportButton(options = {}) {
+  const replyMarkup = options.reply_markup || {}
+  const inlineKeyboard = replyMarkup.inline_keyboard || []
+  const hasSupportButton = inlineKeyboard.some((row) =>
+    row.some((button) => button.text === 'Contact Us' && button.url === SUPPORT_URL)
+  )
+
+  return {
+    ...options,
+    reply_markup: {
+      ...replyMarkup,
+      inline_keyboard: hasSupportButton
+        ? inlineKeyboard
+        : [...inlineKeyboard, [{ text: 'Contact Us', url: SUPPORT_URL }]]
+    }
+  }
+}
+
+function replyWithSupport(ctx, text, options = {}) {
+  return ctx.reply(withSupport(text), withSupportButton(options))
+}
+
 bot.catch((err, ctx) => {
   console.error(`[BOT] Error for ${ctx.updateType}:`, err.message)
 })
@@ -211,7 +239,8 @@ function getMainMenu(lang = 'en') {
         [{ text: t.playGame, web_app: { url: process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL } }],
         [{ text: t.checkBalance, callback_data: 'menu_balance' }, { text: t.deposit, callback_data: 'menu_deposit' }],
         [{ text: t.withdraw, callback_data: 'menu_withdraw' }, { text: t.myRoom, callback_data: 'menu_room' }],
-        [{ text: t.help, callback_data: 'menu_help' }]
+        [{ text: t.help, callback_data: 'menu_help' }],
+        [{ text: 'Contact Us', url: SUPPORT_URL }]
       ]
     }
   }
@@ -239,7 +268,7 @@ async function showInvite(ctx) {
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(shareText)}`
     const frontendUrl = process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL
 
-    await ctx.reply(botText(lang, 'inviteEarn', { link: refLink }), {
+    await replyWithSupport(ctx, botText(lang, 'inviteEarn', { link: refLink }), {
       disable_web_page_preview: true,
       reply_markup: {
         inline_keyboard: [
@@ -251,15 +280,15 @@ async function showInvite(ctx) {
     console.log('[INVITE] Link sent successfully')
   } catch (err) {
     console.error('[INVITE] Crash:', err)
-    return ctx.reply(`❌ Error: ${err.message}`).catch(() => {})
+    return replyWithSupport(ctx, `❌ Error: ${err.message}`).catch(() => {})
   }
 }
 
 bot.start(async (ctx) => {
-  const text = 'Please select your language / እባክዎ ቋንቋ ይምረጡ:'
+  const text = withSupport('Please select your language / እባክዎ ቋንቋ ይምረጡ:')
   const referralRef = getReferralRefFromStartPayload(ctx.startPayload)
 
-  ctx.reply(text, {
+  ctx.reply(text, withSupportButton({
     reply_markup: {
       inline_keyboard: [
         [
@@ -274,12 +303,12 @@ bot.start(async (ctx) => {
         ]
       ]
     }
-  }).catch(e => console.error('Start error:', e))
+  })).catch(e => console.error('Start error:', e))
 })
 
 bot.command('menu', async (ctx) => {
   const lang = await getUserLanguage(ctx)
-  ctx.reply(botText(lang, 'mainMenu'), getMainMenu(lang)).catch(() => {})
+  replyWithSupport(ctx, botText(lang, 'mainMenu'), getMainMenu(lang)).catch(() => {})
 })
 
 bot.command(['invite', 'referral'], async (ctx) => {
@@ -289,7 +318,7 @@ bot.command(['invite', 'referral'], async (ctx) => {
 
 bot.command('play', async (ctx) => {
   const lang = await getUserLanguage(ctx)
-  ctx.reply(botText(lang, 'launchPrompt'), {
+  replyWithSupport(ctx, botText(lang, 'launchPrompt'), {
     reply_markup: { inline_keyboard: [[{ text: botText(lang, 'playBingo'), web_app: { url: process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL } }]] }
   }).catch(() => {})
 })
@@ -298,38 +327,39 @@ bot.command('balance', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   try {
     const user = await db('users').where({ telegram_id: ctx.from.id }).first()
-    if (user) ctx.reply(botText(lang, 'balance', { amount: Number(user.wallet_balance || 0).toFixed(2) }))
-    else ctx.reply(botText(lang, 'userNotFound'))
+    if (user) replyWithSupport(ctx, botText(lang, 'balance', { amount: Number(user.wallet_balance || 0).toFixed(2) })).catch(() => {})
+    else replyWithSupport(ctx, botText(lang, 'userNotFound')).catch(() => {})
   } catch (e) {
-    ctx.reply(botText(lang, 'balanceFailed')).catch(() => {})
+    replyWithSupport(ctx, botText(lang, 'balanceFailed')).catch(() => {})
   }
 })
 
 bot.command('help', async (ctx) => {
   const lang = await getUserLanguage(ctx)
-  ctx.reply(botText(lang, 'helpMessage')).catch(() => {})
+  replyWithSupport(ctx, botText(lang, 'helpMessage')).catch(() => {})
 })
 
 bot.command('register', async (ctx) => {
   const lang = await getUserLanguage(ctx)
-  return ctx.reply(
-    botText(lang, 'registerPrompt'),
+  await ctx.reply(
+    withSupport(botText(lang, 'registerPrompt')),
     Markup.keyboard([
       [Markup.button.contactRequest(botText(lang, 'sharePhone'))]
     ]).resize().oneTime()
   )
+  return ctx.reply('Contact Us', withSupportButton())
 })
 
 bot.command('deposit', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   userStates[ctx.from.id] = 'WAITING_FOR_RECEIPT'
-  ctx.reply(botText(lang, 'depositInstructions', { name: 'Kenaw Nuru Muhabe', phone: '0989002307' })).catch(() => {})
+  replyWithSupport(ctx, botText(lang, 'depositInstructions', { name: 'Kenaw Nuru Muhabe', phone: '0989002307' })).catch(() => {})
 })
 
 bot.command('withdraw', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   userStates[ctx.from.id] = 'WAITING_FOR_WITHDRAW_AMOUNT'
-  ctx.reply(botText(lang, 'withdrawPrompt')).catch(() => {})
+  replyWithSupport(ctx, botText(lang, 'withdrawPrompt')).catch(() => {})
 })
 
 bot.action('show_invite', async (ctx) => {
@@ -340,13 +370,13 @@ bot.action('show_invite', async (ctx) => {
 bot.action('lang_en', async (ctx) => {
   await ctx.answerCbQuery().catch(() => {})
   try { await db('users').where({ telegram_id: ctx.from.id }).update({ language: 'en' }) } catch (e) {}
-  ctx.reply(botText('en', 'languageSet'), getMainMenu('en')).catch(() => {})
+  replyWithSupport(ctx, botText('en', 'languageSet'), getMainMenu('en')).catch(() => {})
 })
 
 bot.action('lang_am', async (ctx) => {
   await ctx.answerCbQuery().catch(() => {})
   try { await db('users').where({ telegram_id: ctx.from.id }).update({ language: 'am' }) } catch (e) {}
-  ctx.reply(botText('am', 'languageSet'), getMainMenu('am')).catch(() => {})
+  replyWithSupport(ctx, botText('am', 'languageSet'), getMainMenu('am')).catch(() => {})
 })
 
 bot.action('menu_balance', async (ctx) => {
@@ -354,11 +384,11 @@ bot.action('menu_balance', async (ctx) => {
   try {
     await ctx.answerCbQuery().catch(() => {})
     const user = await db('users').where({ telegram_id: ctx.from.id }).first()
-    if (!user) return ctx.reply(botText(lang, 'userNotFound'))
-    ctx.reply(botText(lang, 'balance', { amount: Number(user.wallet_balance || 0).toFixed(2) })).catch(() => {})
+    if (!user) return replyWithSupport(ctx, botText(lang, 'userNotFound'))
+    replyWithSupport(ctx, botText(lang, 'balance', { amount: Number(user.wallet_balance || 0).toFixed(2) })).catch(() => {})
   } catch (err) {
     console.error('Balance Error:', err)
-    ctx.reply(botText(lang, 'balanceFailed')).catch(() => {})
+    replyWithSupport(ctx, botText(lang, 'balanceFailed')).catch(() => {})
   }
 })
 
@@ -367,20 +397,20 @@ bot.action('menu_deposit', async (ctx) => {
   await ctx.answerCbQuery().catch(() => {})
   userStates[ctx.from.id] = 'WAITING_FOR_RECEIPT'
   const msg = botText(lang, 'depositInstructions', { name: 'Kenaw Nuru Muhabe', phone: '0989002307' })
-  ctx.reply(msg).catch(() => {})
+  replyWithSupport(ctx, msg).catch(() => {})
 })
 
 bot.action('menu_withdraw', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   await ctx.answerCbQuery().catch(() => {})
   userStates[ctx.from.id] = 'WAITING_FOR_WITHDRAW_AMOUNT'
-  ctx.reply(botText(lang, 'withdrawPrompt')).catch(() => {})
+  replyWithSupport(ctx, botText(lang, 'withdrawPrompt')).catch(() => {})
 })
 
 bot.action('menu_room', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   await ctx.answerCbQuery().catch(() => {})
-  ctx.reply(botText(lang, 'roomPrompt'), {
+  replyWithSupport(ctx, botText(lang, 'roomPrompt'), {
     reply_markup: { inline_keyboard: [[{ text: botText(lang, 'openLobby'), web_app: { url: process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL } }]] }
   }).catch(() => {})
 })
@@ -388,7 +418,7 @@ bot.action('menu_room', async (ctx) => {
 bot.action('menu_help', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   await ctx.answerCbQuery().catch(() => {})
-  ctx.reply(botText(lang, 'helpMessage')).catch(() => {})
+  replyWithSupport(ctx, botText(lang, 'helpMessage')).catch(() => {})
 })
 
 bot.on('inline_query', async (ctx) => {
