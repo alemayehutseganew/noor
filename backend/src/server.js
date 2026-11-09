@@ -110,7 +110,10 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
-app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => bot.handleUpdate(req.body, res))
+app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => {
+  res.sendStatus(200)
+  bot.handleUpdate(req.body).catch((err) => console.error('[WEBHOOK ERROR]', err))
+})
 
 // --- API routes ---
 app.use('/api/auth', lazyRouter('./routes/auth'))
@@ -144,6 +147,15 @@ app.use((err, req, res, next) => {
 function setupRealtime() {
   const { setupSocket } = require('./sockets/gameHandler')
   io = setupSocket(server)
+  Object.assign(io.engine.opts.cors, {
+    origin: [
+      'https://noor-one-beta.vercel.app',
+      'https://ked-seven.vercel.app',
+      'https://sale-green.vercel.app'
+    ],
+    methods: ['GET', 'POST'],
+    credentials: true
+  })
   app.set('io', io)
 
   if (process.env.REDIS_URL) {
@@ -170,15 +182,6 @@ const PORT = process.env.PORT || 3001
 
 async function start() {
   setupRealtime()
-  console.log('⏳ Running database migrations...')
-  try {
-    await db.migrate.latest()
-    console.log('✅ Database migrations completed successfully.')
-  } catch (err) {
-    console.error('❌ MIGRATION FAILED:', err)
-    // Do NOT process.exit(1) here. Let the server start so we can see the real error.
-  }
-
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`)
 
@@ -189,6 +192,15 @@ async function start() {
         .catch((err) => console.error('❌ Failed to set Telegram Webhook:', err))
     }
   })
+
+  console.log('⏳ Running database migrations...')
+  try {
+    db.migrate.latest()
+      .then(() => console.log('✅ Database migrations completed successfully.'))
+      .catch((err) => console.error('❌ MIGRATION FAILED:', err))
+  } catch (err) {
+    console.error('❌ MIGRATION FAILED:', err)
+  }
 }
 
 // --- Graceful shutdown (important for real-money: avoid mid-transaction kills) ---
