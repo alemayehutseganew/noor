@@ -1,11 +1,5 @@
 const { Telegraf, Markup } = require('telegraf')
 const db = require('../db')
-const {
-  parseTelebirrSMS,
-  extractTelebirrReceipt,
-  creditVerifiedDeposit,
-  PaymentVerificationError,
-} = require('../services/paymentService')
 
 const userStates = {}
 const SUPPORT_URL = 'https://t.me/Knoor1221'
@@ -509,6 +503,12 @@ bot.on('text', async (ctx) => {
     if (!state) return
 
     if (state === 'WAITING_FOR_RECEIPT') {
+      const {
+        parseTelebirrSMS,
+        extractTelebirrReceipt,
+        creditVerifiedDeposit,
+        PaymentVerificationError,
+      } = require('../services/paymentService')
       const smsText = ctx.message.text
       const extractedReceipt = extractTelebirrReceipt(smsText)
       if (!extractedReceipt.reference) {

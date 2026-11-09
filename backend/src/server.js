@@ -46,17 +46,25 @@ if (missingVars.length > 0) {
 const express = require('express')
 const cors = require('cors')
 const http = require('http')
-const authRoutes = require('./routes/auth')
-const roomRoutes = require('./routes/rooms')
-const paymentsRoutes = require('./routes/payments')
-const walletRoutes = require('./routes/wallet')
-const usersRoutes = require('./routes/users')
-const adminRoutes = require('./routes/admin')
 const db = require('./db')
-const { setupSocket } = require('./sockets/gameHandler')
 const { bot } = require('./bot/index')
 
 const app = express()
+const server = http.createServer(app)
+let io
+
+function lazyRouter(modulePath) {
+  let router
+  return (req, res, next) => {
+    try {
+      router = router || require(modulePath)
+      return router(req, res, next)
+    } catch (err) {
+      return next(err)
+    }
+  }
+}
+
 app.use((req, res, next) => {
   console.log(`[SERVER TRACE] Incoming request: ${req.method} ${req.url}`)
   next()
@@ -112,12 +120,12 @@ app.get('/health', (req, res) => {
 })
 
 // --- API routes ---
-app.use('/api/auth', authRoutes)
-app.use('/api/rooms', roomRoutes)
-app.use('/api/payments', paymentsRoutes)
-app.use('/api/wallet', walletRoutes)
-app.use('/api/users', usersRoutes)
-app.use('/api/admin', adminRoutes)
+app.use('/api/auth', lazyRouter('./routes/auth'))
+app.use('/api/rooms', lazyRouter('./routes/rooms'))
+app.use('/api/payments', lazyRouter('./routes/payments'))
+app.use('/api/wallet', lazyRouter('./routes/wallet'))
+app.use('/api/users', lazyRouter('./routes/users'))
+app.use('/api/admin', lazyRouter('./routes/admin'))
 console.log('✅ API routes mounted: /api/auth, /api/rooms, /api/payments, /api/wallet, /api/users, /api/admin')
 
 // --- 404 (must come after all routes) ---
@@ -140,33 +148,35 @@ app.use((err, req, res, next) => {
 })
 
 // --- HTTP + Socket.io ---
-const server = http.createServer(app)
-const io = setupSocket(server)
-app.set('io', io)
+function setupRealtime() {
+  const { setupSocket } = require('./sockets/gameHandler')
+  io = setupSocket(server)
+  app.set('io', io)
 
-// Optional Redis adapter for horizontal scaling
-if (process.env.REDIS_URL) {
-  try {
-    const { createAdapter } = require('@socket.io/redis-adapter')
-    const { createClient } = require('redis')
-    const pubClient = createClient({ url: process.env.REDIS_URL })
-    const subClient = pubClient.duplicate()
-    Promise.all([pubClient.connect(), subClient.connect()])
-      .then(() => {
-        io.adapter(createAdapter(pubClient, subClient))
-        console.log('✅ Redis adapter connected for Socket.io scaling')
-      })
-      .catch((err) => console.error('❌ Redis adapter error:', err))
-  } catch (err) {
-    console.log('⚠️ Redis packages not installed. Using in-memory adapter.')
+  if (process.env.REDIS_URL) {
+    try {
+      const { createAdapter } = require('@socket.io/redis-adapter')
+      const { createClient } = require('redis')
+      const pubClient = createClient({ url: process.env.REDIS_URL })
+      const subClient = pubClient.duplicate()
+      Promise.all([pubClient.connect(), subClient.connect()])
+        .then(() => {
+          io.adapter(createAdapter(pubClient, subClient))
+          console.log('✅ Redis adapter connected for Socket.io scaling')
+        })
+        .catch((err) => console.error('❌ Redis adapter error:', err))
+    } catch (err) {
+      console.log('⚠️ Redis packages not installed. Using in-memory adapter.')
+    }
+  } else {
+    console.log('⚠️ REDIS_URL not set. Using in-memory Socket.io adapter.')
   }
-} else {
-  console.log('⚠️ REDIS_URL not set. Using in-memory Socket.io adapter.')
 }
 
 const PORT = process.env.PORT || 3001
 
 async function start() {
+  setupRealtime()
   console.log('⏳ Running database migrations...')
   try {
     await db.migrate.latest()
