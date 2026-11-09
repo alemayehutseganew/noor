@@ -64,6 +64,7 @@ For more support: @saleg122`,
     insufficientBalance: '❌ Insufficient balance. You only have ETB {{amount}}.',
     withdrawalPending: '⏳ Your withdrawal request for ETB {{amount}} is pending admin approval.',
     requestFailed: '❌ Failed to process your request. Please try again.',
+    alreadyRegistered: '✅ You are already registered.',
     phoneSaved: '✅ Phone number saved: {{phone}}\n\nYou can now use the bot normally.',
     registrationComplete: '✅ Registration complete! Phone number: {{phone}}',
     contactFailed: '❌ Failed to save your contact. Please try again.',
@@ -126,6 +127,7 @@ For more support: @saleg122`,
     insufficientBalance: '❌ በቂ ቀሪ ሂሳብ የለም። ያለዎት {{amount}} ብር ብቻ ነው።',
     withdrawalPending: '⏳ {{amount}} ብር የማውጣት ጥያቄዎ የአስተዳዳሪ ማጽደቅ በመጠባበቅ ላይ ነው።',
     requestFailed: '❌ ጥያቄዎን ማስኬድ አልተሳካም። እባክዎ እንደገና ይሞክሩ።',
+    alreadyRegistered: '✅ አስቀድመው ተመዝግበዋል።',
     phoneSaved: '✅ ስልክ ቁጥሩ ተቀምጧል፦ {{phone}}\n\nአሁን ቦቱን በመደበኛው መንገድ መጠቀም ይችላሉ።',
     registrationComplete: '✅ ምዝገባው ተጠናቋል! ስልክ ቁጥር፦ {{phone}}',
     contactFailed: '❌ የእውቂያ መረጃዎን ማስቀመጥ አልተሳካም። እባክዎ እንደገና ይሞክሩ።',
@@ -451,6 +453,15 @@ bot.on('contact', async (ctx) => {
     const contact = ctx.message.contact
     const telegramId = ctx.from.id
     const phoneNumber = contact.phone_number
+
+    const existingUser = await db('users').where({ telegram_id: telegramId }).first()
+    if (existingUser && existingUser.phone_number) {
+      await ctx.reply(
+        botText(lang, 'alreadyRegistered'),
+        Markup.removeKeyboard()
+      )
+      return
+    }
 
     const updated = await db('users')
       .where({ telegram_id: telegramId })
