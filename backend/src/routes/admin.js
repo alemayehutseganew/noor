@@ -69,6 +69,7 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign({ id: admin.id, username: admin.username }, JWT_SECRET, { expiresIn: '24h' })
     res.json({ token })
   } catch (err) {
+    console.error('❌ [ADMIN LOGIN ERROR]:', err)
     res.status(500).json({ error: err.message })
   }
 })
