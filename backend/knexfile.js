@@ -2,6 +2,13 @@ const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '.env'), quiet: true });
 const normalizeDatabaseUrl = require('./src/dbUrl')
 
+function requireProductionDatabaseUrl() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL is required for the production database configuration.')
+  }
+  return process.env.DATABASE_URL
+}
+
 function buildConfig() {
   const base = {
     migrations: { directory: './migrations' },
@@ -41,7 +48,7 @@ module.exports = {
   production: {
     client: 'pg',
     connection: {
-      connectionString: process.env.DATABASE_URL,
+      connectionString: requireProductionDatabaseUrl(),
       ssl: { rejectUnauthorized: false },
     },
     pool: { min: 2, max: 10 },
