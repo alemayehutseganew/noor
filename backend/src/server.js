@@ -10,46 +10,25 @@ const requiredEnvVars = [
   'FRONTEND_URL'
 ];
 
-const invalidJwtSecrets = new Set([
-  'your-secret-key',
-  'default_secret',
-  'dev-secret',
-  'admin-secret',
-]);
-
-if (!process.env.JWT_SECRET || invalidJwtSecrets.has(process.env.JWT_SECRET)) {
-  console.error('❌ CRITICAL ERROR: JWT_SECRET is missing or uses a known insecure fallback.');
-}
-
-if (!process.env.LINKS_ET_API_KEY) {
-  console.error('❌ CRITICAL ERROR: LINKS_ET_API_KEY is required for Telebirr receipt verification.');
-}
-
-if (!process.env.TELEBIRR_RECEIVER_NUMBER) {
-  console.error('❌ CRITICAL ERROR: TELEBIRR_RECEIVER_NUMBER is required for Telebirr receipt verification.');
-}
-
 const missingVars = requiredEnvVars.filter(v => !process.env[v]);
-
 if (missingVars.length > 0) {
   console.error('❌ CRITICAL ERROR: Missing environment variables:', missingVars.join(', '));
-  if (process.env.NODE_ENV === 'production') {
-    console.error('If running on Enzonic, ensure these are added in the Enzonic Dashboard.');
-  }
 } else {
   console.log('✅ All required environment variables are loaded successfully.');
 }
 
 const express = require('express')
 const http = require('http')
+const cors = require('cors')
 
 const app = express()
 
-const cors = require('cors')
+// 1. MUST BE FIRST: Body parser for Telegram webhooks and API JSON
+app.use(express.json())
 
+// 2. CORS Configuration
 const allowedOrigins = [
   'https://noor-one-beta.vercel.app',
-  'https://noor.enzonic.dev',
   'http://localhost:5173'
 ]
 
@@ -67,27 +46,23 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }
 
-// 1. Apply CORS to all requests
 app.use(cors(corsOptions))
+app.options(/.*/, cors(corsOptions)) // Express 5 preflight handling
 
-// 2. Handle preflight OPTIONS requests (Express 5 syntax)
-app.options(/.*/, cors(corsOptions))
-
-// Log OPTIONS preflight requests for debugging
+// 3. Request Logger
 app.use((req, res, next) => {
-  if (req.method === 'OPTIONS') {
-    console.log(`[CORS PREFLIGHT] Received OPTIONS request for: ${req.url}`)
-  }
+  console.log(`[SERVER TRACE] Incoming request: ${req.method} ${req.url}`)
   next()
 })
 
+// 4. App Hardening
+app.disable('x-powered-by')
+app.set('trust proxy', 1)
+
+// 5. Health Check
 app.get('/health', (req, res) => res.status(200).send('OK'))
 
-app.use(express.json({ limit: '1mb' }))
-
-const server = http.createServer(app)
-let io
-
+// 6. Lazy Router Loader (prevents heavy startup crashes)
 function lazyRouter(modulePath) {
   let router
   return (req, res, next) => {
@@ -100,31 +75,39 @@ function lazyRouter(modulePath) {
   }
 }
 
-app.use((req, res, next) => {
-  console.log(`[SERVER TRACE] Incoming request: ${req.method} ${req.url}`)
-  next()
-})
-
-// --- App hardening ---
-app.disable('x-powered-by')
-app.set('trust proxy', 1) // Enzonic sits behind a proxy (needed for correct req.ip / rate limits)
-
-// --- API routes ---
+// 7. API Routes
 app.use('/api/auth', lazyRouter('./routes/auth'))
 app.use('/api/rooms', lazyRouter('./routes/rooms'))
 app.use('/api/payments', lazyRouter('./routes/payments'))
 app.use('/api/wallet', lazyRouter('./routes/wallet'))
 app.use('/api/users', lazyRouter('./routes/users'))
 app.use('/api/admin', lazyRouter('./routes/admin'))
-console.log('✅ API routes mounted: /api/auth, /api/rooms, /api/payments, /api/wallet, /api/users, /api/admin')
+console.log('✅ API routes mounted')
 
-// --- 404 (must come after all routes) ---
+// 8. TELEGRAM WEBHOOK (Must be placed BEFORE the 404 handler)
+const { bot } = require('./bot/index')
+
+app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => {
+  console.log('[WEBHOOK TRACE] Received update from Telegram:', req.body?.update_id)
+  
+  // Acknowledge Telegram immediately
+  res.sendStatus(200)
+  
+  try {
+    bot.handleUpdate(req.body).catch((err) => {
+      console.error('❌ [WEBHOOK ASYNC ERROR]', err)
+    })
+  } catch (err) {
+    console.error('❌ [WEBHOOK SYNC ERROR]', err)
+  }
+})
+
+// 9. 404 Handler (must come after all routes)
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' })
 })
 
-// --- Global error handler (must be the LAST middleware) ---
-// Express forwards errors from express.json() and any route via next(err) to this handler.
+// 10. Global Error Handler
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
     console.error('Invalid JSON payload:', err.message)
@@ -137,16 +120,17 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' })
 })
 
-// --- HTTP + Socket.io ---
+// 11. HTTP Server + Socket.IO Setup
+const server = http.createServer(app)
+let io
+
 function setupRealtime() {
   const { setupSocket } = require('./sockets/gameHandler')
   io = setupSocket(server)
+  
+  // Ensure Socket.IO CORS matches Express CORS
   Object.assign(io.engine.opts.cors, {
-    origin: [
-      'https://noor-one-beta.vercel.app',
-      'https://ked-seven.vercel.app',
-      'https://sale-green.vercel.app'
-    ],
+    origin: ['https://noor-one-beta.vercel.app'],
     methods: ['GET', 'POST'],
     credentials: true
   })
@@ -172,21 +156,16 @@ function setupRealtime() {
   }
 }
 
-const PORT = process.env.PORT || 3001
-
+// 12. Heavy Services Initialization (Runs after server starts listening)
 async function initializeHeavyServices() {
   try {
-    const { bot } = require('./bot/index')
-    app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => {
-      res.sendStatus(200)
-      bot.handleUpdate(req.body).catch((err) => console.error('[WEBHOOK ERROR]', err))
-    })
-
     const webhookUrl = process.env.WEBHOOK_URL
     if (webhookUrl) {
-      bot.telegram.setWebhook(`${webhookUrl.replace(/\/+$/, '')}/telegraf/${bot.secretPathComponent()}`)
-        .then(() => console.log('✅ Telegram Webhook set successfully'))
-        .catch((err) => console.error('❌ Failed to set Telegram Webhook:', err))
+      const normalizedWebhookUrl = webhookUrl.replace(/\/+$/, '')
+      await bot.telegram.setWebhook(`${normalizedWebhookUrl}/telegraf/${bot.secretPathComponent()}`)
+      console.log(`✅ Telegram Webhook set successfully to: ${normalizedWebhookUrl}`)
+    } else {
+      console.error('❌ WEBHOOK_URL is missing in environment variables!')
     }
   } catch (err) {
     console.error('[STARTUP ERROR] Bot initialization failed:', err)
@@ -199,23 +178,27 @@ async function initializeHeavyServices() {
   }
 }
 
+// 13. Start Server
+const PORT = process.env.PORT || 3001
+
 function start() {
   return server.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ SERVER IS LISTENING ON PORT ${PORT}`)
+    
+    // Initialize heavy services in the background so they don't block the port
     setImmediate(() => {
       initializeHeavyServices().catch((err) => console.error('[STARTUP ERROR]', err))
     })
   })
 }
 
-// --- Graceful shutdown (important for real-money: avoid mid-transaction kills) ---
+// 14. Graceful Shutdown
 function shutdown(signal) {
   console.log(`\n${signal} received. Shutting down gracefully...`)
   const finishShutdown = () => {
     if (!require.cache[require.resolve('./db')]) {
       console.log('👋 Shutdown complete')
       process.exit(0)
-      return
     }
 
     require('./db').destroy()
@@ -227,15 +210,15 @@ function shutdown(signal) {
   }
   if (io) io.close(finishShutdown)
   else server.close(finishShutdown)
-  // Hard exit if something hangs
+  
   setTimeout(() => {
     console.error('❌ Forced shutdown after timeout')
     process.exit(1)
   }, 10_000).unref()
 }
+
 process.on('SIGTERM', () => shutdown('SIGTERM'))
 process.on('SIGINT', () => shutdown('SIGINT'))
-
 process.on('uncaughtException', (err) => {
   console.error('❌ UNCAUGHT EXCEPTION:', err);
   process.exit(1);
@@ -244,6 +227,7 @@ process.on('unhandledRejection', (err) => {
   console.error('[UNHANDLED REJECTION]:', err);
 });
 
+// Start the application
 start()
 
 module.exports = { app, server, start }

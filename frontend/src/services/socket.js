@@ -1,6 +1,6 @@
 import { io } from 'socket.io-client'
 
-const socketUrl = import.meta.env.VITE_SOCKET_URL || 'https://kediro.enzonic.dev'
+const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001'
 
 let socket = null
 
