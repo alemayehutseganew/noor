@@ -100,6 +100,7 @@ export default function CardSelection({
         setSelectedMatrix(null);
         setTakenCards((prev) => prev.filter((cardId) => cardId !== currentSelectedCard));
         onCardUpdated?.(null);
+        navigate(`/select-card?stake=${encodeURIComponent(stake)}`, { replace: true });
       } catch (err) {
         setError(err.message || 'Failed to unselect card');
       } finally {
