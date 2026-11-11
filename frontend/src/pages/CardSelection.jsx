@@ -187,49 +187,40 @@ export default function CardSelection({
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-[#0f172a] text-white">
       <div className="flex-1 overflow-y-auto p-4 pb-36">
         <div className="mx-auto max-w-4xl">
-          <div className="mb-6">
-            <div className="mb-4 flex justify-start">
-              {!roomId ? (
-                <button
-                  onClick={() => navigate('/')}
-                  className="flex items-center gap-1 font-bold text-yellow-500 transition-colors hover:text-yellow-400"
-                >
-                  <span>←</span> {t('back')}
-                </button>
-              ) : null}
+          <div className="relative mb-6 flex flex-col items-center justify-center space-y-3">
+            {!roomId && (
+              <button
+                type="button"
+                onClick={() => navigate('/')}
+                className="absolute left-0 top-0 flex items-center gap-1 font-bold text-yellow-500 transition-colors hover:text-yellow-400"
+              >
+                <span>←</span> {t('back')}
+              </button>
+            )}
+
+            <div className="mt-8 flex items-center gap-2 rounded-full border border-slate-600/50 bg-[#1e293b]/80 px-4 py-1.5 text-xs font-bold text-slate-200 shadow-lg backdrop-blur-sm">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              {t('players', { defaultValue: 'Players' })}: {playersCount}
             </div>
 
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex flex-1 justify-start">
-                <div className="flex items-center gap-2 whitespace-nowrap rounded-xl border border-slate-600 bg-[#1e293b]/80 px-3 py-1.5 text-xs font-bold text-slate-200 shadow-lg backdrop-blur-sm">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                  </span>
-                  Players: {playersCount}
-                </div>
-              </div>
+            <h1 className="bg-gradient-to-r from-yellow-400 via-orange-500 to-yellow-400 bg-clip-text text-center text-2xl font-extrabold tracking-tight text-transparent drop-shadow-sm sm:text-3xl">
+              {t('selectCard')} <span className="text-xl sm:text-2xl">({stake} ETB)</span>
+            </h1>
 
-              <div className="flex flex-1 justify-center text-center">
-                <h1 className="whitespace-nowrap text-xl font-extrabold tracking-wide sm:text-2xl">
-                  {t('selectCard')} <span className="text-yellow-400">({stake} ETB)</span>
-                </h1>
-              </div>
-
-              <div className="flex flex-1 justify-end">
-                {currentSelectedCard && !selectionLocked ? (
-                  <button
-                    type="button"
-                    onClick={handleUnselect}
-                    disabled={loading}
-                    className="whitespace-nowrap rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all hover:bg-red-500/20 active:scale-95 disabled:opacity-50"
-                  >
-                    ✖ {t('unselect', { defaultValue: 'Unselect' })}
-                  </button>
-                ) : (
-                  <div className="w-[85px]" />
-                )}
-              </div>
+            <div className="flex h-8 items-center justify-center">
+              {currentSelectedCard && !selectionLocked ? (
+                <button
+                  type="button"
+                  onClick={handleUnselect}
+                  disabled={loading}
+                  className="rounded-full border border-red-500/30 bg-red-500/10 px-4 py-1.5 text-xs font-bold text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.15)] transition-all hover:bg-red-500/20 active:scale-95 disabled:opacity-50"
+                >
+                  ✖ {t('unselect', { defaultValue: 'Unselect Card' })}
+                </button>
+              ) : null}
             </div>
           </div>
 
@@ -243,7 +234,7 @@ export default function CardSelection({
             {Array.from({ length: 400 }, (_, i) => i + 1).map((cardNumber) => {
               const isSelected = currentSelectedCard === cardNumber;
               const isTaken = takenCards.includes(cardNumber) && !isSelected;
-              const isDisabled = isTaken || loading || selectionLocked || (roomId && !cardData);
+              const isDisabled = isTaken || loading || selectionLocked;
 
               return (
                 <button
@@ -255,7 +246,7 @@ export default function CardSelection({
                   className={`relative flex items-center justify-center rounded-md border px-1 py-1 text-xs font-bold transition-all duration-100 touch-manipulation ${
                     isSelected
                       ? 'border-blue-700 border-b-4 bg-blue-500 text-white shadow-[0_3px_0_rgb(29,78,216)] active:translate-y-1 active:shadow-none'
-                      : isTaken || selectionLocked || loading || (roomId && !cardData)
+                      : isDisabled
                         ? 'cursor-not-allowed border-gray-900 border-b-4 bg-gray-800 text-gray-600 opacity-60'
                         : 'border-gray-300 border-b-4 bg-white text-black shadow-[0_3px_0_rgb(156,163,175)] hover:-translate-y-0.5 hover:shadow-[0_4px_0_rgb(156,163,175)] active:translate-y-1 active:shadow-none'
                   }`}
