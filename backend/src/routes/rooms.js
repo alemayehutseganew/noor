@@ -85,7 +85,7 @@ router.post('/join', userAuth, async (req, res) => {
         existing = await trx('room_participants')
           .where({ room_id: activeRoom.id, user_id: user.id })
           .first()
-        if (existing && activeRoom.status === 'COUNTDOWN') {
+        if (activeRoom.status === 'COUNTDOWN') {
           room = activeRoom
         } else if (existing) {
           throw new Error('CARD_CHANGE_LOCKED')

@@ -118,6 +118,11 @@ const GameScreen = () => {
       }
     });
     socket.on('game_over', (data) => {
+      if (data?.reason === 'no_winner' || (Array.isArray(data?.winners) && data.winners.length === 0)) {
+        navigate(`/select-card?stake=${stake}`);
+        return;
+      }
+
       const myId = String(userId);
       const isWinner = data.winnerIds?.some(id => String(id) === myId);
       if (isSpectator) {

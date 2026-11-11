@@ -446,10 +446,23 @@ async function startCountdown(io, roomId) {
           if (room.calledNumbers.size === 75) {
             clearInterval(room.intervalId)
             room.intervalId = null
-            room.status = 'ENDED'
-            await db('game_rooms').where({ id: roomId }).update({ status: 'ENDED' })
-            io.to(roomId).emit('game_ended_for_spectators')
-            scheduleRoomReset(io, roomId, room)
+            setTimeout(async () => {
+              if (room.status !== 'PLAYING') return
+
+              try {
+                const ended = await db('game_rooms')
+                  .where({ id: roomId, status: 'PLAYING' })
+                  .update({ status: 'ENDED' })
+                if (!ended) return
+
+                room.status = 'ENDED'
+                io.to(roomId).emit('game_over', { reason: 'no_winner', winners: [] })
+                io.to(roomId).emit('game_ended_for_spectators')
+                scheduleRoomReset(io, roomId, room)
+              } catch (err) {
+                console.error(`[Game] Failed to end no-winner room ${roomId}:`, err)
+              }
+            }, 3000)
           }
         }, 3000)
       } catch (err) {
@@ -527,7 +540,7 @@ function initGameHandler(io) {
         }
 
         // Reconnecting during an active round never restores player status.
-        if (['PLAYING', 'CLAIMING', 'COUNTDOWN'].includes(persistedRoom.status)) {
+        if (['PLAYING', 'CLAIMING'].includes(persistedRoom.status)) {
           const room = rooms[roomId]
           const playerCount = await emitCurrentRoomState(socket, roomId, room)
           socket.emit('game_in_progress', {
