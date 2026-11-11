@@ -229,6 +229,34 @@ router.post('/join', userAuth, async (req, res) => {
   }
 })
 
+router.delete('/:id/my-card', userAuth, async (req, res) => {
+  try {
+    const roomId = req.params.id
+    const userId = req.user.id
+
+    await db.transaction(async (trx) => {
+      const room = await trx('game_rooms').where({ id: roomId }).forUpdate().first()
+      if (!room) throw new Error('ROOM_NOT_FOUND')
+      if (!['WAITING', 'COUNTDOWN'].includes(room.status)) {
+        throw new Error('GAME_ALREADY_STARTED')
+      }
+
+      await trx('room_card_selections').where({ room_id: roomId, user_id: userId }).del()
+    })
+
+    return res.json({ success: true, message: 'Card unselected' })
+  } catch (err) {
+    if (err.message === 'GAME_ALREADY_STARTED') {
+      return res.status(400).json({ error: 'Cannot unselect card after game has started.' })
+    }
+    if (err.message === 'ROOM_NOT_FOUND') {
+      return res.status(404).json({ error: 'Room not found' })
+    }
+    console.error('[UNSELECT CARD ERROR]', err)
+    return res.status(500).json({ error: 'Failed to unselect card' })
+  }
+})
+
 // GET /api/rooms/:roomId/cards
 router.get('/:roomId/cards', userAuth, async (req, res) => {
   try {

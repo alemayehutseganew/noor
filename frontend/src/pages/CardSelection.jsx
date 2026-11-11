@@ -156,6 +156,33 @@ export default function CardSelection({
     }
   };
 
+  const handleUnselect = async () => {
+    if (selectionLocked || loading || !currentSelectedCard || !roomId) return;
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await fetchApi(`/rooms/${encodeURIComponent(roomId)}/my-card`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to unselect card');
+      }
+
+      setSelectedCard(null);
+      setSelectedMatrix(null);
+      setTakenCards((prev) => prev.filter((cardId) => cardId !== currentSelectedCard));
+      onCardUpdated?.(null);
+    } catch (err) {
+      setError(err.message || 'Failed to unselect card');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-[#0f172a] text-white">
       <div className="flex-1 overflow-y-auto p-4 pb-36">
@@ -212,7 +239,18 @@ export default function CardSelection({
 
       <div className="fixed bottom-0 z-30 h-32 w-full border-t border-gray-700 bg-[#0f172a] p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
         <div className="mx-auto flex h-full max-w-4xl gap-2">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-xl bg-white p-1.5 text-gray-900">
+          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col rounded-xl bg-white p-1.5 text-gray-900">
+            {currentSelectedCard && !selectionLocked && (
+              <button
+                type="button"
+                onClick={handleUnselect}
+                disabled={loading}
+                className="absolute right-2 top-1 z-10 text-xs font-bold text-red-500 hover:text-red-700 disabled:opacity-50"
+                title="Unselect Card"
+              >
+                ✖ Unselect
+              </button>
+            )}
             <div className="mb-1 shrink-0 truncate text-center text-[10px] font-bold leading-3 sm:text-xs">
               {currentSelectedCard ? t('cardNo', { number: currentSelectedCard }) : t('selectCard')}
             </div>
