@@ -78,12 +78,37 @@ export default function CardSelection({
 
   const handleCardSelect = async (cardNumber) => {
     unlockAudio();
-    if (
-      selectionLocked
-      || loading
-      || cardNumber === currentSelectedCard
-      || (takenCards.includes(cardNumber) && cardNumber !== currentSelectedCard)
-    ) return;
+    if (selectionLocked || loading) return;
+
+    if (cardNumber === currentSelectedCard) {
+      if (!roomId) return;
+
+      setLoading(true);
+      setError('');
+
+      try {
+        const res = await fetchApi(`/rooms/${encodeURIComponent(roomId)}/my-card`, {
+          method: 'DELETE',
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Failed to unselect card');
+        }
+
+        setSelectedCard(null);
+        setSelectedMatrix(null);
+        setTakenCards((prev) => prev.filter((cardId) => cardId !== currentSelectedCard));
+        onCardUpdated?.(null);
+      } catch (err) {
+        setError(err.message || 'Failed to unselect card');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (takenCards.includes(cardNumber)) return;
 
     const previousCard = currentSelectedCard;
     const previousMatrix = currentSelectedMatrix;
@@ -156,71 +181,33 @@ export default function CardSelection({
     }
   };
 
-  const handleUnselect = async () => {
-    if (selectionLocked || loading || !currentSelectedCard || !roomId) return;
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const res = await fetchApi(`/rooms/${encodeURIComponent(roomId)}/my-card`, {
-        method: 'DELETE',
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to unselect card');
-      }
-
-      setSelectedCard(null);
-      setSelectedMatrix(null);
-      setTakenCards((prev) => prev.filter((cardId) => cardId !== currentSelectedCard));
-      onCardUpdated?.(null);
-    } catch (err) {
-      setError(err.message || 'Failed to unselect card');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-[#0f172a] text-white">
       <div className="flex-1 overflow-y-auto p-4 pb-36">
         <div className="mx-auto max-w-4xl">
-          <div className="relative mb-6 flex flex-col items-center justify-center space-y-3">
+          <div className="mx-auto mb-6 w-full max-w-lg">
             {!roomId && (
               <button
                 type="button"
                 onClick={() => navigate('/')}
-                className="absolute left-0 top-0 flex items-center gap-1 font-bold text-yellow-500 transition-colors hover:text-yellow-400"
+                className="mb-4 flex items-center gap-1 font-bold text-yellow-500 transition-colors hover:text-yellow-400"
               >
                 <span>←</span> {t('back')}
               </button>
             )}
 
-            <div className="mt-8 flex items-center gap-2 rounded-full border border-slate-600/50 bg-[#1e293b]/80 px-4 py-1.5 text-xs font-bold text-slate-200 shadow-lg backdrop-blur-sm">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-              </span>
-              {t('players', { defaultValue: 'Players' })}: {playersCount}
-            </div>
+            <div className="flex w-full items-center justify-between gap-2">
+              <div className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-600/50 bg-[#1e293b]/80 px-3 py-1.5 text-sm font-bold text-slate-200 shadow-lg backdrop-blur-sm">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                {t('players', { defaultValue: 'Players' })}: {playersCount}
+              </div>
 
-            <h1 className="bg-gradient-to-r from-yellow-400 via-orange-500 to-yellow-400 bg-clip-text text-center text-2xl font-extrabold tracking-tight text-transparent drop-shadow-sm sm:text-3xl">
-              {t('selectCard')} <span className="text-xl sm:text-2xl">({stake} ETB)</span>
-            </h1>
-
-            <div className="flex h-8 items-center justify-center">
-              {currentSelectedCard && !selectionLocked ? (
-                <button
-                  type="button"
-                  onClick={handleUnselect}
-                  disabled={loading}
-                  className="rounded-full border border-red-500/30 bg-red-500/10 px-4 py-1.5 text-xs font-bold text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.15)] transition-all hover:bg-red-500/20 active:scale-95 disabled:opacity-50"
-                >
-                  ✖ {t('unselect', { defaultValue: 'Unselect Card' })}
-                </button>
-              ) : null}
+              <h1 className="whitespace-nowrap bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-right text-xl font-extrabold tracking-tight text-transparent drop-shadow-sm sm:text-2xl">
+                {t('selectCard')} <span className="text-lg sm:text-xl">({stake} ETB)</span>
+              </h1>
             </div>
           </div>
 
