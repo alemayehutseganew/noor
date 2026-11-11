@@ -187,19 +187,50 @@ export default function CardSelection({
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-[#0f172a] text-white">
       <div className="flex-1 overflow-y-auto p-4 pb-36">
         <div className="mx-auto max-w-4xl">
-          <div className="mb-5 flex items-center justify-between gap-3">
-            {!roomId ? (
-              <button
-                onClick={() => navigate('/')}
-                className="font-bold text-yellow-500 hover:text-yellow-400"
-              >
-                ← {t('back')}
-              </button>
-            ) : <div className="w-12" />}
-            <h1 className="text-center text-xl font-bold sm:text-2xl">
-              {t('selectCard')} ({stake} ETB)
-            </h1>
-            <div className="w-12" />
+          <div className="mb-6">
+            <div className="mb-4 flex justify-start">
+              {!roomId ? (
+                <button
+                  onClick={() => navigate('/')}
+                  className="flex items-center gap-1 font-bold text-yellow-500 transition-colors hover:text-yellow-400"
+                >
+                  <span>←</span> {t('back')}
+                </button>
+              ) : null}
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-1 justify-start">
+                <div className="flex items-center gap-2 whitespace-nowrap rounded-xl border border-slate-600 bg-[#1e293b]/80 px-3 py-1.5 text-xs font-bold text-slate-200 shadow-lg backdrop-blur-sm">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                  </span>
+                  Players: {playersCount}
+                </div>
+              </div>
+
+              <div className="flex flex-1 justify-center text-center">
+                <h1 className="whitespace-nowrap text-xl font-extrabold tracking-wide sm:text-2xl">
+                  {t('selectCard')} <span className="text-yellow-400">({stake} ETB)</span>
+                </h1>
+              </div>
+
+              <div className="flex flex-1 justify-end">
+                {currentSelectedCard && !selectionLocked ? (
+                  <button
+                    type="button"
+                    onClick={handleUnselect}
+                    disabled={loading}
+                    className="whitespace-nowrap rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all hover:bg-red-500/20 active:scale-95 disabled:opacity-50"
+                  >
+                    ✖ {t('unselect', { defaultValue: 'Unselect' })}
+                  </button>
+                ) : (
+                  <div className="w-[85px]" />
+                )}
+              </div>
+            </div>
           </div>
 
           {error && (
@@ -239,18 +270,7 @@ export default function CardSelection({
 
       <div className="fixed bottom-0 z-30 h-32 w-full border-t border-gray-700 bg-[#0f172a] p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
         <div className="mx-auto flex h-full max-w-4xl gap-2">
-          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col rounded-xl bg-white p-1.5 text-gray-900">
-            {currentSelectedCard && !selectionLocked && (
-              <button
-                type="button"
-                onClick={handleUnselect}
-                disabled={loading}
-                className="absolute right-2 top-1 z-10 text-xs font-bold text-red-500 hover:text-red-700 disabled:opacity-50"
-                title="Unselect Card"
-              >
-                ✖ Unselect
-              </button>
-            )}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-xl bg-white p-1.5 text-gray-900">
             <div className="mb-1 shrink-0 truncate text-center text-[10px] font-bold leading-3 sm:text-xs">
               {currentSelectedCard ? t('cardNo', { number: currentSelectedCard }) : t('selectCard')}
             </div>
