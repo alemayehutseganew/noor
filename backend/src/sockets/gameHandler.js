@@ -482,6 +482,34 @@ function initGameHandler(io) {
       socket.join(`user_${socket.data.userId}`)
     }
 
+    const checkAutoStart = async (roomId) => {
+      const room = rooms[roomId]
+      if (!room || room.status !== 'WAITING') {
+        console.log(`[Game] Auto-start ignored for room ${roomId}. Status is: ${room?.status}`)
+        return
+      }
+
+      const playerCount = await getPlayerCount(roomId)
+      console.log(`[Game] Auto-start check for room ${roomId}. DB Players: ${playerCount}`)
+
+      if (playerCount >= 2) {
+        console.log(`[Game] Starting countdown for room ${roomId} with ${playerCount} players.`)
+        await startCountdown(io, roomId)
+      }
+    }
+
+    socket.on('check_auto_start', async () => {
+      const roomId = Array.from(socket.rooms)
+        .find((joinedRoomId) => joinedRoomId !== socket.id && rooms[joinedRoomId])
+      if (!roomId) return
+
+      try {
+        await checkAutoStart(roomId)
+      } catch (err) {
+        console.error(`[Game] Auto-start check failed for room ${roomId}:`, err)
+      }
+    })
+
     socket.on('join_room', async ({ roomId, stake, spectator }) => {
       try {
         const user = await db('users').where({ id: socket.data.userId }).first()
@@ -586,18 +614,7 @@ function initGameHandler(io) {
         io.to(String(roomId)).emit('players_updated', { count: playerCount })
         io.to(String(roomId)).emit('room_update', { players: playerCount, stake: rooms[roomId].stake })
 
-        // 3. AUTO-START
-        if (rooms[roomId].status === 'WAITING' && playerCount >= 2) {
-          setTimeout(() => {
-            const activeRoom = rooms[roomId]
-            const activePlayerCount = activeRoom
-              ? new Set(Object.values(activeRoom.players).map((player) => String(player.userId))).size
-              : 0
-            if (activeRoom && activeRoom.status === 'WAITING' && activePlayerCount >= 2) {
-              startCountdown(io, roomId)
-            }
-          }, 2000)
-        }
+        await checkAutoStart(roomId)
       } catch (err) {
         console.error('[Game] Join room error:', err)
         socket.emit('error', { message: 'Server error' })
