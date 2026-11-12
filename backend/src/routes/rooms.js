@@ -192,17 +192,26 @@ router.post('/join', userAuth, async (req, res) => {
        }
     })
 
+    const io = req.app.get('io')
+    if (io) {
+      const countResult = await db('room_participants')
+        .where({ room_id: result.room.id })
+        .count('* as count')
+        .first()
+      const playerCount = Number(countResult?.count || 0)
+      io.to(String(result.room.id)).emit('players_updated', { count: playerCount })
+    }
+
     if (result.status === 'spectator') {
-       const io = req.app.get('io')
-       if (io) {
-         await io.in(`user_${user.id}`).socketsJoin(result.room.id)
-       }
-       return res.json({
-         status: 'spectator',
-         roomId: result.room.id,
-         stake: result.room.stake_amount,
-         message: 'Game already in progress',
-       })
+      if (io) {
+        await io.in(`user_${user.id}`).socketsJoin(result.room.id)
+      }
+      return res.json({
+        status: 'spectator',
+        roomId: result.room.id,
+        stake: result.room.stake_amount,
+        message: 'Game already in progress',
+      })
     }
 
     console.log('[join] Sending response:', result.room.id)

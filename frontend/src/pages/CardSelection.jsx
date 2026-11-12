@@ -13,7 +13,7 @@ const formatTime = (seconds) => {
 
 export default function CardSelection({
   countdown = null,
-  playersCount = 0,
+  playersCount,
   isGameStarted = false,
   cardData = null,
   onCardUpdated,
@@ -25,6 +25,7 @@ export default function CardSelection({
   const { t } = useTranslation();
 
   const [takenCards, setTakenCards] = useState([]);
+  const [socketPlayersCount, setSocketPlayersCount] = useState(null);
   const [selectedCard, setSelectedCard] = useState(cardData?.id ? Number(cardData.id) : null);
   const [selectedMatrix, setSelectedMatrix] = useState(cardData?.matrix || null);
   const [loading, setLoading] = useState(false);
@@ -34,6 +35,7 @@ export default function CardSelection({
   const selectionLocked = isGameStarted
     || (countdown !== null && countdown !== undefined && countdown <= 0);
   const hasCountdown = countdown !== null && countdown !== undefined;
+  const displayPlayersCount = playersCount ?? socketPlayersCount ?? 0;
 
   useEffect(() => {
     const fetchTakenCards = async () => {
@@ -51,10 +53,13 @@ export default function CardSelection({
   }, [stake]);
 
   useEffect(() => {
-    if (!roomId || onCardUpdated) return undefined;
+    if (!roomId) return undefined;
 
-    const socket = SocketService.get();
-    if (!socket) return undefined;
+    const socket = SocketService.connect();
+    const handlePlayersUpdated = (data) => {
+      const count = Number(data?.count);
+      if (Number.isFinite(count)) setSocketPlayersCount(count);
+    };
 
     const redirectToGame = () => {
       navigate(`/game?roomId=${encodeURIComponent(roomId)}&stake=${encodeURIComponent(stake)}`);
@@ -65,11 +70,16 @@ export default function CardSelection({
       }
     };
 
+    socket.on('players_updated', handlePlayersUpdated);
     socket.on('game_started', redirectToGame);
     socket.on('game_in_progress', redirectToGame);
     socket.on('room_update', handleRoomUpdate);
+    if (!onCardUpdated) {
+      socket.emit('join_room', { roomId, stake: Number(stake) });
+    }
 
     return () => {
+      socket.off('players_updated', handlePlayersUpdated);
       socket.off('game_started', redirectToGame);
       socket.off('game_in_progress', redirectToGame);
       socket.off('room_update', handleRoomUpdate);
@@ -140,6 +150,14 @@ export default function CardSelection({
         return;
       }
 
+      const joinedRoomId = data.roomId || roomId;
+      if (joinedRoomId) {
+        SocketService.connect().emit('join_room', {
+          roomId: joinedRoomId,
+          stake: Number(data.stake || stake),
+        });
+      }
+
       localStorage.setItem('activeGameRoom', JSON.stringify({
         roomId: data.roomId || roomId,
         stake: Number(data.stake || stake),
@@ -203,7 +221,7 @@ export default function CardSelection({
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                 </span>
-                {t('players', { defaultValue: 'Players' })}: {playersCount}
+                {t('players', { defaultValue: 'Players' })}: {displayPlayersCount}
               </div>
 
               <h1 className="whitespace-nowrap bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-right text-xl font-extrabold tracking-tight text-transparent drop-shadow-sm sm:text-2xl">
@@ -279,7 +297,7 @@ export default function CardSelection({
           </div>
 
           <div className="flex min-w-0 flex-1 flex-col items-center justify-center rounded-xl bg-blue-900/50 p-2 text-center">
-            {playersCount < 2 ? (
+            {displayPlayersCount < 2 ? (
               <span className="animate-pulse text-xs font-semibold leading-tight text-blue-100 sm:text-sm">
                 {t('waitingPlayers')}
               </span>

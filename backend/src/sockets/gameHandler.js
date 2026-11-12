@@ -489,7 +489,7 @@ function initGameHandler(io) {
 
         const persistedRoom = await db('game_rooms').where({ id: roomId }).first()
         if (!persistedRoom) return socket.emit('error', { message: 'Room not found' })
-        socket.join(roomId)
+        socket.join(String(roomId))
 
         const participant = await db('room_participants')
           .where({ room_id: roomId, user_id: user.id })
@@ -580,12 +580,11 @@ function initGameHandler(io) {
           })),
         })
 
-        const playerCount = await getPlayerCount(roomId)
-        await emitCurrentRoomState(socket, roomId, rooms[roomId])
+        const playerCount = await emitCurrentRoomState(socket, roomId, rooms[roomId])
         console.log(`[Game] Player ${user.id} joined. Total players: ${playerCount}`)
 
-        io.to(roomId).emit('players_updated', { count: playerCount })
-        io.to(roomId).emit('room_update', { players: playerCount, stake: rooms[roomId].stake })
+        io.to(String(roomId)).emit('players_updated', { count: playerCount })
+        io.to(String(roomId)).emit('room_update', { players: playerCount, stake: rooms[roomId].stake })
 
         // 3. AUTO-START
         if (rooms[roomId].status === 'WAITING' && playerCount >= 2) {
