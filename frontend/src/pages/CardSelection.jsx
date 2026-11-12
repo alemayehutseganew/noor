@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { fetchApi } from '../services/api';
@@ -31,7 +31,20 @@ export default function CardSelection({
   const [selectedCard, setSelectedCard] = useState(cardData?.id ? Number(cardData.id) : null);
   const [selectedMatrix, setSelectedMatrix] = useState(cardData?.matrix || null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [toast, setToast] = useState({ show: false, message: '', type: 'error' });
+  const toastTimeoutRef = useRef({ hide: null, clear: null });
+  const cardSelectionVersionRef = useRef(0);
+  const showToast = useCallback((message, type = 'error') => {
+    clearTimeout(toastTimeoutRef.current.hide);
+    clearTimeout(toastTimeoutRef.current.clear);
+    setToast({ show: true, message, type });
+    toastTimeoutRef.current.hide = setTimeout(() => {
+      setToast((current) => ({ ...current, show: false }));
+    }, 2700);
+    toastTimeoutRef.current.clear = setTimeout(() => {
+      setToast({ show: false, message: '', type: 'error' });
+    }, 3200);
+  }, []);
   const currentSelectedCard = selectedCard ?? (cardData?.id ? Number(cardData.id) : null);
   const currentSelectedMatrix = selectedCard === null ? cardData?.matrix || null : selectedMatrix;
   const activeRoomId = roomId || waitingRoom?.roomId;
@@ -40,6 +53,11 @@ export default function CardSelection({
     || (currentCountdown !== null && currentCountdown !== undefined && currentCountdown <= 0);
   const hasCountdown = currentCountdown !== null && currentCountdown !== undefined;
   const displayPlayersCount = playersCount ?? socketPlayersCount ?? 0;
+
+  useEffect(() => () => {
+    clearTimeout(toastTimeoutRef.current.hide);
+    clearTimeout(toastTimeoutRef.current.clear);
+  }, []);
 
   useEffect(() => {
     if (roomId || onCardUpdated) return undefined;
@@ -56,7 +74,7 @@ export default function CardSelection({
       } catch (err) {
         if (!cancelled) {
           console.error('Failed to fetch waiting room', err);
-          setError(err.message || 'Failed to fetch waiting room.');
+          showToast(err.message || 'Failed to fetch waiting room.');
         }
       }
     };
@@ -65,15 +83,18 @@ export default function CardSelection({
     return () => {
       cancelled = true;
     };
-  }, [onCardUpdated, roomId, stake]);
+  }, [onCardUpdated, roomId, showToast, stake]);
 
   useEffect(() => {
+    const selectionVersion = cardSelectionVersionRef.current;
     const fetchTakenCards = async () => {
       try {
         const res = await fetchApi(`/rooms/active-cards?stake=${stake}`);
         if (res.ok) {
           const data = await res.json();
-          setTakenCards(data.takenCards || []);
+          if (cardSelectionVersionRef.current === selectionVersion) {
+            setTakenCards(data.takenCards || []);
+          }
         }
       } catch (err) {
         console.error('Failed to fetch taken cards', err);
@@ -132,7 +153,6 @@ export default function CardSelection({
       if (!roomId) return;
 
       setLoading(true);
-      setError('');
 
       try {
         const res = await fetchApi(`/rooms/${encodeURIComponent(roomId)}/my-card`, {
@@ -146,11 +166,12 @@ export default function CardSelection({
 
         setSelectedCard(null);
         setSelectedMatrix(null);
+        cardSelectionVersionRef.current += 1;
         setTakenCards((prev) => prev.filter((cardId) => cardId !== currentSelectedCard));
         onCardUpdated?.(null);
         navigate(`/select-card?stake=${encodeURIComponent(stake)}`, { replace: true });
       } catch (err) {
-        setError(err.message || 'Failed to unselect card');
+        showToast(err.message || 'Failed to unselect card');
       } finally {
         setLoading(false);
       }
@@ -164,7 +185,6 @@ export default function CardSelection({
     setSelectedCard(cardNumber);
     setSelectedMatrix(null);
     setLoading(true);
-    setError('');
 
     try {
       const res = await fetchApi('/rooms/join', {
@@ -206,6 +226,12 @@ export default function CardSelection({
         id: Number(data.card.id),
         matrix: data.card.matrix,
       };
+      cardSelectionVersionRef.current += 1;
+      setTakenCards((prev) => prev.filter((cardId) => (
+        Number(cardId) !== Number(previousCard)
+        && Number(cardId) !== Number(cardNumber)
+        && Number(cardId) !== updatedCard.id
+      )));
       setSelectedCard(updatedCard.id);
       setSelectedMatrix(updatedCard.matrix);
 
@@ -230,9 +256,13 @@ export default function CardSelection({
 
       setSelectedCard(previousCard);
       setSelectedMatrix(previousMatrix);
-      setError(errorText || t('joinFailed'));
+      showToast(errorText || t('joinFailed'));
       if (errorMessage.includes('taken')) {
-        setTakenCards((prev) => [...prev, cardNumber]);
+        setTakenCards((prev) => (
+          prev.some((cardId) => Number(cardId) === Number(cardNumber))
+            ? prev
+            : [...prev, cardNumber]
+        ));
       }
     } finally {
       setLoading(false);
@@ -269,16 +299,10 @@ export default function CardSelection({
             </div>
           </div>
 
-          {error && (
-            <div className="mb-4 rounded bg-red-600 p-3 text-center text-white">
-              {error}
-            </div>
-          )}
-
           <div className="mx-auto grid max-w-lg grid-cols-6 gap-1 p-2">
             {Array.from({ length: 400 }, (_, i) => i + 1).map((cardNumber) => {
-              const isSelected = currentSelectedCard === cardNumber;
-              const isTaken = takenCards.includes(cardNumber) && !isSelected;
+              const isSelected = Number(currentSelectedCard) === cardNumber;
+              const isTaken = takenCards.some((takenCard) => Number(takenCard) === cardNumber) && !isSelected;
               const isDisabled = isTaken || loading || selectionLocked;
 
               return (
@@ -385,6 +409,35 @@ export default function CardSelection({
           </div>
         </div>
       </div>
+
+      {toast.message && (
+        <div
+          role="alert"
+          className={`fixed bottom-36 left-1/2 z-50 w-11/12 max-w-sm -translate-x-1/2 transform transition-all duration-300 ${
+            toast.show ? 'translate-y-0 opacity-100' : 'translate-y-5 opacity-0'
+          }`}
+        >
+          <div className={`flex items-center gap-3 rounded-2xl border p-4 backdrop-blur-xl ${
+            toast.type === 'error'
+              ? 'border-red-500/50 bg-slate-800/90 shadow-[0_10px_30px_rgba(239,68,68,0.3)]'
+              : 'border-emerald-500/50 bg-slate-800/90 shadow-[0_10px_30px_rgba(16,185,129,0.25)]'
+          }`}>
+            <div className={`flex items-center justify-center rounded-full p-2 ${
+              toast.type === 'error' ? 'bg-red-500/20' : 'bg-emerald-500/20'
+            }`}>
+              <span className={`text-lg ${toast.type === 'error' ? 'text-red-400' : 'text-emerald-400'}`} aria-hidden="true">
+                {toast.type === 'error' ? '⚠️' : '✓'}
+              </span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold leading-tight text-white">
+                {toast.type === 'error' ? t('joinFailed') : t('success', { defaultValue: 'Success' })}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-300">{toast.message}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
