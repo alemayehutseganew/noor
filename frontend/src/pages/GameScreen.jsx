@@ -402,30 +402,32 @@ const GameScreen = () => {
         </div>
       ) : (
         <>
-      <div className="flex flex-1 flex-col gap-4 lg:flex-row">
-        <div className="flex w-full flex-col gap-4 lg:w-1/2">
-          <div className="flex min-h-44 w-full shrink-0 items-center justify-center">
-            {countdown !== null ? (
-              <span className="text-7xl font-bold text-white">{formatTime(countdown)}</span>
-            ) : currentBall ? (
-              <div className={`relative flex h-40 w-40 items-center justify-center rounded-full bg-gradient-to-br shadow-[0_20px_40px_rgba(0,0,0,0.6),inset_0_-10px_20px_rgba(0,0,0,0.6),inset_0_10px_20px_rgba(255,255,255,0.4)] sm:h-48 sm:w-48 ${getBallGradient(currentBall.letter)}`}>
-                <div className="pointer-events-none absolute left-4 top-2 h-1/4 w-2/3 -rotate-12 rounded-full bg-white/30 blur-md" />
-                <span className="z-10 text-4xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,0.6)] sm:text-5xl">{currentBall.letter}-{currentBall.number}</span>
-              </div>
-            ) : (
-              <span className="font-bold text-slate-400">{t('waitingGame')}</span>
-            )}
+      <div className="flex w-full shrink-0 items-center justify-center pb-2">
+        {countdown !== null ? (
+          <span className="text-7xl font-bold text-white">{formatTime(countdown)}</span>
+        ) : currentBall ? (
+          <div className={`relative flex h-40 w-40 items-center justify-center rounded-full bg-gradient-to-br shadow-[0_20px_40px_rgba(0,0,0,0.6),inset_0_-10px_20px_rgba(0,0,0,0.6),inset_0_10px_20px_rgba(255,255,255,0.4)] sm:h-48 sm:w-48 ${getBallGradient(currentBall.letter)}`}>
+            <div className="pointer-events-none absolute left-4 top-2 h-1/4 w-2/3 -rotate-12 rounded-full bg-white/30 blur-md" />
+            <span className="z-10 text-4xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,0.6)] sm:text-5xl">{currentBall.letter}-{currentBall.number}</span>
           </div>
-          <div className="flex min-h-11 flex-wrap justify-center gap-2">
+        ) : (
+          <span className="font-bold text-slate-400">{t('waitingGame')}</span>
+        )}
+      </div>
+      <div className="grid flex-1 grid-cols-2 items-start gap-2 sm:gap-3">
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="flex min-h-8 flex-wrap justify-center gap-1">
             {calledHistory.slice(-10).map((ball, i) => (
-              <div key={i} className={`flex h-11 w-11 items-center justify-center rounded-full border border-white/30 text-sm font-bold text-white ${getBallColor(ball.letter)}`}>{ball.number}</div>
+              <div key={i} className={`flex h-8 w-8 items-center justify-center rounded-full border border-white/30 text-[10px] font-bold text-white sm:h-9 sm:w-9 sm:text-xs ${getBallColor(ball.letter)}`}>{ball.number}</div>
             ))}
           </div>
-          <div className="rounded-2xl border border-slate-600/50 bg-slate-800/80 p-2.5 shadow-2xl">
-            <div className="grid grid-cols-5 gap-1.5">
+          <div className="flex flex-col gap-1 overflow-hidden rounded-xl border border-slate-600/50 bg-slate-800/80 p-1.5 shadow-xl">
+            <div className="grid grid-cols-5 gap-1">
               {['B', 'I', 'N', 'G', 'O'].map((letter) => (
-                <div key={letter} className={`flex min-h-11 items-center justify-center rounded-lg border-b-4 border-black/30 bg-gradient-to-b text-lg font-black text-white shadow-md ${getBallGradient(letter)}`}>{letter}</div>
+                <div key={letter} className={`rounded border-b-2 border-black/30 bg-gradient-to-b py-1 text-center text-xs font-black text-white shadow-md ${getBallGradient(letter)}`}>{letter}</div>
               ))}
+            </div>
+            <div className="grid grid-cols-5 gap-1">
               {Array.from({ length: 15 }, (_, rowIndex) => (
                 <Fragment key={rowIndex}>
                   {[0, 1, 2, 3, 4].map((colIndex) => {
@@ -433,7 +435,7 @@ const GameScreen = () => {
                     const isCalled = calledNumbers.includes(num);
                     const letter = num <= 15 ? 'B' : num <= 30 ? 'I' : num <= 45 ? 'N' : num <= 60 ? 'G' : 'O';
                     return (
-                      <div key={num} className={`flex min-h-11 min-w-11 items-center justify-center rounded-xl text-sm ${isCalled ? `bg-gradient-to-br ${getBallGradient(letter)} font-bold text-white shadow-[0_4px_0_rgba(0,0,0,0.6)]` : 'bg-slate-900/80 text-slate-300 shadow-inner'}`}>{num}</div>
+                      <div key={num} className={`flex h-6 items-center justify-center rounded text-[10px] sm:h-7 sm:text-xs ${isCalled ? `bg-gradient-to-br ${getBallGradient(letter)} font-bold text-white shadow-[0_3px_0_rgba(0,0,0,0.6)]` : 'border border-slate-700 bg-slate-900 text-slate-400 shadow-inner'}`}>{num}</div>
                     );
                   })}
                 </Fragment>
@@ -442,22 +444,22 @@ const GameScreen = () => {
           </div>
         </div>
 
-        <div className="flex w-full flex-col items-center justify-center gap-4 py-2 lg:w-1/2 lg:py-4">
-          <div className="w-full flex flex-col items-center gap-4">
+        <div className="flex min-w-0 flex-col items-center gap-2">
+          <div className="flex w-full flex-col items-center gap-2">
             {cardsData && cardsData.length > 0 ? (
-              <div className="w-full max-w-lg rounded-2xl border border-slate-600/50 bg-slate-800/80 p-2.5 shadow-2xl sm:p-3">
-                <div className="mb-2 text-center text-lg font-bold text-slate-200">{t('cardNo', { number: cardsData[0]?.id || '?' })}</div>
-                <div className="mb-2 grid grid-cols-5 gap-1.5">
+              <div className="w-full rounded-xl border border-slate-600/50 bg-slate-800/80 p-1.5 shadow-xl">
+                <div className="mb-1 text-center text-[10px] font-bold text-slate-300 sm:text-xs">{t('cardNo', { number: cardsData[0]?.id || '?' })}</div>
+                <div className="mb-1 grid grid-cols-5 gap-1">
                   {['B', 'I', 'N', 'G', 'O'].map((letter) => (
-                    <div key={letter} className={`flex min-h-11 items-center justify-center rounded-lg border-b-4 border-black/30 bg-gradient-to-b text-xl font-black text-white shadow-md ${getBallGradient(letter)}`}>{letter}</div>
+                    <div key={letter} className={`rounded border-b-2 border-black/30 bg-gradient-to-b py-1 text-center text-xs font-black text-white shadow-md ${getBallGradient(letter)}`}>{letter}</div>
                   ))}
                 </div>
-                <div className="grid grid-cols-5 gap-1.5">
+                <div className="grid grid-cols-5 gap-1">
                   {cardsData[0]?.matrix?.flat().map((num, index) => {
                     const isFree = index === 12 || num === 'FREE';
                     const isMarked = isFree || markedNumbers.includes(num);
                     return (
-                      <button type="button" key={index} onClick={() => !isFree && handleDaub(num)} className={`aspect-square min-h-11 min-w-11 flex items-center justify-center rounded-xl border font-bold text-base transition-all duration-150 sm:text-lg ${isFree ? 'border-blue-300/30 bg-gradient-to-br from-blue-500 to-blue-800 text-white shadow-[inset_0_6px_12px_rgba(0,0,0,0.45)]' : isMarked ? 'border-emerald-300/30 bg-gradient-to-br from-emerald-400 to-emerald-700 text-white shadow-[inset_0_6px_12px_rgba(0,0,0,0.5)]' : 'border-slate-300 bg-slate-100 text-slate-900 shadow-[0_5px_0_rgb(148,163,184)] hover:bg-white active:translate-y-1 active:shadow-none'}`}>
+                      <button type="button" key={index} onClick={() => !isFree && handleDaub(num)} className={`aspect-square min-h-0 min-w-0 flex items-center justify-center rounded-md border text-[10px] font-bold transition-all duration-150 sm:text-xs ${isFree ? 'border-blue-300/30 bg-gradient-to-br from-blue-500 to-blue-800 text-white shadow-[inset_0_4px_8px_rgba(0,0,0,0.45)]' : isMarked ? 'border-emerald-300/30 bg-gradient-to-br from-emerald-400 to-emerald-700 text-white shadow-[inset_0_4px_8px_rgba(0,0,0,0.5)]' : 'border-slate-300 bg-slate-100 text-slate-900 shadow-[0_3px_0_rgb(148,163,184)] hover:bg-white active:translate-y-0.5 active:shadow-none'}`}>
                         {isFree ? 'F' : num}
                       </button>
                     );
@@ -465,9 +467,9 @@ const GameScreen = () => {
                 </div>
               </div>
             ) : (
-              <div className="text-white text-center mt-10">{t('loadingCard')}</div>
+              <div className="py-4 text-center text-xs text-white">{t('loadingCard')}</div>
             )}
-            <button type="button" onClick={handleBingoClick} className="min-h-14 w-full max-w-sm rounded-xl border border-amber-300/50 bg-gradient-to-b from-yellow-300 to-amber-500 py-3 text-2xl font-extrabold text-slate-900 shadow-[0_6px_0_rgb(180,83,9)] transition-all active:translate-y-1 active:shadow-none">{t('bingo')}</button>
+            <button type="button" onClick={handleBingoClick} className="min-h-11 w-full rounded-lg border border-amber-300/50 bg-gradient-to-b from-yellow-300 to-amber-500 py-2 text-base font-extrabold text-slate-900 shadow-[0_4px_0_rgb(180,83,9)] transition-all active:translate-y-1 active:shadow-none">{t('bingo')}</button>
           </div>
         </div>
       </div>
