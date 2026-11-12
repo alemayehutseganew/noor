@@ -25,17 +25,47 @@ export default function CardSelection({
   const { t } = useTranslation();
 
   const [takenCards, setTakenCards] = useState([]);
+  const [waitingRoom, setWaitingRoom] = useState(null);
   const [socketPlayersCount, setSocketPlayersCount] = useState(null);
+  const [socketCountdown, setSocketCountdown] = useState(null);
   const [selectedCard, setSelectedCard] = useState(cardData?.id ? Number(cardData.id) : null);
   const [selectedMatrix, setSelectedMatrix] = useState(cardData?.matrix || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const currentSelectedCard = selectedCard ?? (cardData?.id ? Number(cardData.id) : null);
   const currentSelectedMatrix = selectedCard === null ? cardData?.matrix || null : selectedMatrix;
+  const activeRoomId = roomId || waitingRoom?.roomId;
+  const currentCountdown = countdown ?? socketCountdown;
   const selectionLocked = isGameStarted
-    || (countdown !== null && countdown !== undefined && countdown <= 0);
-  const hasCountdown = countdown !== null && countdown !== undefined;
+    || (currentCountdown !== null && currentCountdown !== undefined && currentCountdown <= 0);
+  const hasCountdown = currentCountdown !== null && currentCountdown !== undefined;
   const displayPlayersCount = playersCount ?? socketPlayersCount ?? 0;
+
+  useEffect(() => {
+    if (roomId || onCardUpdated) return undefined;
+    let cancelled = false;
+
+    const fetchWaitingRoom = async () => {
+      try {
+        const res = await fetchApi(`/rooms/waiting-room?stake=${encodeURIComponent(stake)}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to fetch waiting room.');
+        if (cancelled) return;
+        setWaitingRoom(data.roomId ? data : null);
+        setSocketPlayersCount(Number(data.playerCount || 0));
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Failed to fetch waiting room', err);
+          setError(err.message || 'Failed to fetch waiting room.');
+        }
+      }
+    };
+
+    fetchWaitingRoom();
+    return () => {
+      cancelled = true;
+    };
+  }, [onCardUpdated, roomId, stake]);
 
   useEffect(() => {
     const fetchTakenCards = async () => {
@@ -53,16 +83,20 @@ export default function CardSelection({
   }, [stake]);
 
   useEffect(() => {
-    if (!roomId) return undefined;
+    if (!activeRoomId || onCardUpdated) return undefined;
 
     const socket = SocketService.connect();
     const handlePlayersUpdated = (data) => {
       const count = Number(data?.count);
       if (Number.isFinite(count)) setSocketPlayersCount(count);
     };
+    const handleCountdown = (data) => {
+      const timeLeft = Number(data?.timeLeft);
+      if (Number.isFinite(timeLeft)) setSocketCountdown(timeLeft);
+    };
 
     const redirectToGame = () => {
-      navigate(`/game?roomId=${encodeURIComponent(roomId)}&stake=${encodeURIComponent(stake)}`);
+      navigate(`/game?roomId=${encodeURIComponent(activeRoomId)}&stake=${encodeURIComponent(stake)}`);
     };
     const handleRoomUpdate = (data) => {
       if (String(data?.status).toLowerCase() === 'playing') {
@@ -71,20 +105,24 @@ export default function CardSelection({
     };
 
     socket.on('players_updated', handlePlayersUpdated);
+    socket.on('countdown_tick', handleCountdown);
     socket.on('game_started', redirectToGame);
     socket.on('game_in_progress', redirectToGame);
     socket.on('room_update', handleRoomUpdate);
-    if (!onCardUpdated) {
-      socket.emit('join_room', { roomId, stake: Number(stake) });
-    }
+    socket.emit('join_room', {
+      roomId: activeRoomId,
+      stake: Number(stake),
+      observeOnly: !roomId,
+    });
 
     return () => {
       socket.off('players_updated', handlePlayersUpdated);
+      socket.off('countdown_tick', handleCountdown);
       socket.off('game_started', redirectToGame);
       socket.off('game_in_progress', redirectToGame);
       socket.off('room_update', handleRoomUpdate);
     };
-  }, [navigate, onCardUpdated, roomId, stake]);
+  }, [activeRoomId, navigate, onCardUpdated, roomId, stake]);
 
   const handleCardSelect = async (cardNumber) => {
     unlockAudio();
@@ -156,6 +194,7 @@ export default function CardSelection({
           roomId: joinedRoomId,
           stake: Number(data.stake || stake),
         });
+        setWaitingRoom({ roomId: joinedRoomId, playerCount: socketPlayersCount || 0 });
       }
 
       localStorage.setItem('activeGameRoom', JSON.stringify({
@@ -307,7 +346,7 @@ export default function CardSelection({
                   {t('countdown')}
                 </span>
                 <span className="mt-1 text-2xl font-black tabular-nums sm:text-4xl">
-                  {formatTime(Math.max(0, Number(countdown)))}
+                  {formatTime(Math.max(0, Number(currentCountdown)))}
                 </span>
               </>
             ) : (

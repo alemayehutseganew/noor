@@ -38,6 +38,39 @@ router.get('/active-cards', async (req, res) => {
   }
 })
 
+router.get('/waiting-room', userAuth, async (req, res) => {
+  try {
+    const stake = Number(req.query.stake)
+    if (!Number.isFinite(stake) || stake <= 0) {
+      return res.status(400).json({ error: 'A valid stake is required.' })
+    }
+
+    const waitingRooms = await db('game_rooms')
+      .where({ stake_amount: stake, status: 'WAITING' })
+      .orderBy('created_at')
+
+    for (const room of waitingRooms) {
+      const participant = await db('room_participants')
+        .where({ room_id: room.id, user_id: req.user.id })
+        .first()
+      const countResult = await db('room_participants')
+        .where({ room_id: room.id })
+        .count('* as count')
+        .first()
+      const playerCount = Number(countResult?.count || 0)
+
+      if (participant || playerCount < MAX_ROOM_PLAYERS) {
+        return res.json({ roomId: room.id, playerCount })
+      }
+    }
+
+    return res.json({ roomId: null, playerCount: 0 })
+  } catch (err) {
+    console.error('[rooms] Failed to fetch waiting room:', err)
+    return res.status(500).json({ error: 'Failed to fetch waiting room.' })
+  }
+})
+
 router.post('/join', userAuth, async (req, res) => {
   try {
     // 1. DEFINE VARIABLES
@@ -199,7 +232,15 @@ router.post('/join', userAuth, async (req, res) => {
         .count('* as count')
         .first()
       const playerCount = Number(countResult?.count || 0)
+      console.log(`[REST] Player joined. Emitting count: ${playerCount}`)
       io.to(String(result.room.id)).emit('players_updated', { count: playerCount })
+      if (playerCount >= 2 && typeof io.checkAutoStart === 'function') {
+        try {
+          await io.checkAutoStart(result.room.id)
+        } catch (err) {
+          console.error(`[REST] Auto-start check failed for room ${result.room.id}:`, err)
+        }
+      }
     }
 
     if (result.status === 'spectator') {

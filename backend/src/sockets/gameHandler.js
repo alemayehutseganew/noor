@@ -34,6 +34,9 @@ async function emitCurrentRoomState(socket, roomId, room) {
   const playerCount = await getPlayerCount(roomId)
   const calledNumbers = Array.from(room.calledNumbers || [])
   socket.emit('players_updated', { count: playerCount })
+  if (room.status === 'COUNTDOWN' && Number.isFinite(room.countdownTimeLeft)) {
+    socket.emit('countdown_tick', { timeLeft: room.countdownTimeLeft })
+  }
 
   if (calledNumbers.length > 0) {
     const lastBall = room.latestNumber || getBallData(calledNumbers[calledNumbers.length - 1])
@@ -270,10 +273,12 @@ async function startCountdown(io, roomId) {
   }
 
   let timeLeft = 30
+  room.countdownTimeLeft = timeLeft
   io.to(roomId).emit('countdown_tick', { timeLeft })
 
   const countdownInterval = setInterval(async () => {
     timeLeft -= 1
+    room.countdownTimeLeft = timeLeft
     io.to(roomId).emit('countdown_tick', { timeLeft })
 
     if (timeLeft <= 0) {
@@ -477,25 +482,45 @@ async function startCountdown(io, roomId) {
 }
 
 function initGameHandler(io) {
+  const checkAutoStart = async (roomId) => {
+    let room = rooms[roomId]
+    if (!room) {
+      const persistedRoom = await db('game_rooms').where({ id: roomId }).first()
+      if (!persistedRoom) return
+
+      let calledNumbers = persistedRoom.called_numbers || []
+      if (typeof calledNumbers === 'string') calledNumbers = JSON.parse(calledNumbers)
+      room = rooms[roomId] = {
+        id: roomId,
+        stake: Number(persistedRoom.stake_amount) || 10,
+        status: persistedRoom.status,
+        players: {},
+        calledNumbers: new Set(Array.isArray(calledNumbers) ? calledNumbers : []),
+        latestNumber: Array.isArray(calledNumbers) && calledNumbers.length > 0
+          ? getBallData(calledNumbers[calledNumbers.length - 1])
+          : null,
+        intervalId: null,
+      }
+    }
+
+    if (!room || room.status !== 'WAITING') {
+      console.log(`[Game] Auto-start ignored for room ${roomId}. Status is: ${room?.status}`)
+      return
+    }
+
+    const playerCount = await getPlayerCount(roomId)
+    console.log(`[Game] Auto-start check for room ${roomId}. DB Players: ${playerCount}`)
+
+    if (playerCount >= 2) {
+      console.log(`[Game] Starting countdown for room ${roomId} with ${playerCount} players.`)
+      await startCountdown(io, roomId)
+    }
+  }
+  io.checkAutoStart = checkAutoStart
+
   io.on('connection', (socket) => {
     if (socket.data.userId) {
       socket.join(`user_${socket.data.userId}`)
-    }
-
-    const checkAutoStart = async (roomId) => {
-      const room = rooms[roomId]
-      if (!room || room.status !== 'WAITING') {
-        console.log(`[Game] Auto-start ignored for room ${roomId}. Status is: ${room?.status}`)
-        return
-      }
-
-      const playerCount = await getPlayerCount(roomId)
-      console.log(`[Game] Auto-start check for room ${roomId}. DB Players: ${playerCount}`)
-
-      if (playerCount >= 2) {
-        console.log(`[Game] Starting countdown for room ${roomId} with ${playerCount} players.`)
-        await startCountdown(io, roomId)
-      }
     }
 
     socket.on('check_auto_start', async () => {
@@ -510,7 +535,7 @@ function initGameHandler(io) {
       }
     })
 
-    socket.on('join_room', async ({ roomId, stake, spectator }) => {
+    socket.on('join_room', async ({ roomId, stake, spectator, observeOnly }) => {
       try {
         const user = await db('users').where({ id: socket.data.userId }).first()
         if (!user) return socket.emit('error', { message: 'User not found' })
@@ -518,6 +543,7 @@ function initGameHandler(io) {
         const persistedRoom = await db('game_rooms').where({ id: roomId }).first()
         if (!persistedRoom) return socket.emit('error', { message: 'Room not found' })
         socket.join(String(roomId))
+        socket.emit('players_updated', { count: await getPlayerCount(roomId) })
 
         const participant = await db('room_participants')
           .where({ room_id: roomId, user_id: user.id })
@@ -527,6 +553,8 @@ function initGameHandler(io) {
             .where({ room_id: roomId, user_id: user.id })
             .first()
           : null
+
+        if (observeOnly && (!participant || !cardSelection)) return
 
         if (spectator && persistedRoom.status === 'WAITING' && (!participant || !cardSelection)) {
           socket.emit('next_game_ready', {
