@@ -168,7 +168,7 @@ async function initializeHeavyServices() {
       console.error('❌ WEBHOOK_URL is missing in environment variables!')
     }
   } catch (err) {
-    console.error('[STARTUP ERROR] Bot initialization failed:', err)
+    console.error('❌ Failed to set Telegram Webhook:', err)
   }
 
   try {
