@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../LanguageContext';
+import { useWallet } from '../WalletContext';
 import { fetchApi } from '../services/api';
 import SocketService from '../services/socket';
 import { getMuteState, toggleMute, unlockAudio } from '../utils/bingoSounds';
@@ -25,6 +26,7 @@ export default function CardSelection({
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const { changeLanguage } = useLanguage();
+  const { balance } = useWallet();
 
   const [takenCards, setTakenCards] = useState([]);
   const [waitingRoom, setWaitingRoom] = useState(null);
@@ -332,7 +334,13 @@ export default function CardSelection({
                   <span className="text-yellow-400">{displayPlayersCount}</span>
                 </div>
               </div>
-              <div className="ml-auto flex gap-2">
+              <div className="ml-auto flex items-center gap-2">
+                <div className="flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-900/80 px-3 shadow-inner">
+                  <span className="text-sm text-yellow-400" aria-hidden="true">💰</span>
+                  <span className="text-sm font-black tabular-nums text-white sm:text-base">
+                    {Number(balance || 0).toFixed(2)} <span className="text-[10px] font-bold text-slate-400">ETB</span>
+                  </span>
+                </div>
                 <button
                   type="button"
                   aria-label={i18n.language === 'en' ? 'Change language to Amharic' : 'Change language to English'}
@@ -351,9 +359,6 @@ export default function CardSelection({
                 </button>
               </div>
             </div>
-            <h1 className="whitespace-nowrap bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-center text-xl font-extrabold tracking-tight text-transparent drop-shadow-sm sm:text-2xl">
-              {t('selectCard')} <span className="text-lg sm:text-xl">({stake} ETB)</span>
-            </h1>
           </div>
 
           <div className="mx-auto grid max-w-lg grid-cols-6 gap-1 p-2">
