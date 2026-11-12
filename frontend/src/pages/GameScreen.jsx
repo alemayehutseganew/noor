@@ -483,16 +483,35 @@ const GameScreen = () => {
       )}
 
       {gameResult && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className={`bg-[#112A46] rounded-2xl p-8 max-w-sm w-full text-center border-4 ${gameResult.type === 'win' ? 'border-yellow-500' : 'border-red-500'}`}>
-            <h2 className={`text-4xl font-bold mb-4 ${gameResult.type === 'win' ? 'text-yellow-400' : 'text-red-400'}`}>
-              {t(gameResult.titleKey)}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md transition-opacity">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="game-result-title"
+            className="w-full max-w-sm rounded-3xl border border-slate-600/50 bg-slate-800/90 p-8 text-center shadow-[0_0_50px_rgba(0,0,0,0.8)] transition-transform duration-300"
+          >
+            <div className="mb-4 flex justify-center">
+              <div className={`flex h-20 w-20 items-center justify-center rounded-full text-4xl ${gameResult.type === 'win' ? 'animate-bounce bg-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.6)]' : 'animate-pulse bg-slate-700 text-blue-200 shadow-inner'}`}>
+                {gameResult.type === 'win' ? '🏆' : '✨'}
+              </div>
+            </div>
+            <h2
+              id="game-result-title"
+              className={`mb-3 text-3xl font-black ${gameResult.type === 'win' ? 'bg-gradient-to-r from-yellow-300 to-yellow-500 bg-clip-text text-transparent' : 'text-slate-100'}`}
+            >
+              {t(gameResult.type === 'win' ? gameResult.titleKey : 'wellPlayed')}
             </h2>
-            <p className="text-white text-xl mb-8">{t(gameResult.messageKey, {
+            <p className="mb-8 text-base leading-relaxed text-slate-300">{t(gameResult.messageKey, {
               ...gameResult.messageValues,
               name: gameResult.messageValues?.name || t('player'),
             })}</p>
-            <button onClick={() => { setGameResult(null); navigate('/'); }} className="w-full bg-white text-[#112A46] font-bold py-3 rounded-xl">{t('backToLobby')}</button>
+            <button
+              type="button"
+              onClick={() => { setGameResult(null); navigate('/'); }}
+              className="min-h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-3.5 font-bold text-white shadow-[0_5px_0_#1e3a8a] transition-all active:translate-y-1 active:shadow-none"
+            >
+              {t('backToLobby')}
+            </button>
           </div>
         </div>
       )}

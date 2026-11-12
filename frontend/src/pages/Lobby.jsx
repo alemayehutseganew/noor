@@ -135,79 +135,87 @@ export default function Lobby() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0f2027] via-[#203a43] to-[#2c5364] text-white font-sans flex flex-col relative overflow-hidden">
+    <div className="relative flex min-h-screen flex-col overflow-hidden bg-gradient-to-b from-[#0f172a] via-[#1e293b] to-[#020617] font-sans text-white">
       
       {/* Decorative background glow */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-yellow-500/20 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="pointer-events-none absolute left-1/2 top-0 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-yellow-500/15 blur-[120px]" />
 
       {/* Top Navigation Bar */}
-      <div className="relative z-10 flex items-center justify-between px-4 py-4">
+      <div className="relative z-10 mx-3 mt-3 flex items-center justify-between rounded-2xl border border-slate-600/50 bg-slate-800/50 p-3 shadow-2xl backdrop-blur-lg sm:mx-4">
         <button 
+          type="button"
+          aria-label={t('playerMenu')}
           onClick={() => setIsMenuOpen(true)}
-          className="p-2 bg-white/10 backdrop-blur-md rounded-xl border border-white/10 hover:bg-white/20 transition-all"
+          className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-600/50 bg-slate-700/80 text-slate-100 shadow-[0_4px_0_rgb(30,41,59)] transition-all hover:bg-slate-600 active:translate-y-1 active:shadow-none"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button 
+            type="button"
             onClick={toggleLanguage}
-            className="px-3 py-1.5 bg-white/10 backdrop-blur-md text-white text-xs font-bold rounded-full border border-white/10 hover:bg-white/20 transition-all"
+            className="min-h-11 min-w-11 rounded-full border border-slate-600/50 bg-slate-700/80 px-3 text-xs font-bold text-white shadow-[0_4px_0_rgb(30,41,59)] transition-all hover:bg-slate-600 active:translate-y-1 active:shadow-none"
           >
             {i18n.language === 'en' ? 'AM' : 'EN'}
           </button>
-          <div 
+          <button
+            type="button"
             onClick={() => navigate('/wallet')}
-            className="flex items-center gap-2 bg-white text-[#0f2027] rounded-full px-4 py-1.5 font-extrabold shadow-lg shadow-yellow-500/20 cursor-pointer hover:scale-105 transition-transform"
+            className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-600 bg-gradient-to-r from-slate-900 to-slate-800 px-3 font-extrabold text-white shadow-inner transition-transform hover:scale-[1.02] sm:px-4"
           >
-            <span className="text-green-600 text-lg">₿</span>
+            <span className="text-lg text-yellow-400" aria-hidden="true">💰</span>
             <span>ETB {walletBalance.toFixed(2)}</span>
-          </div>
+          </button>
         </div>
       </div>
 
       {/* Header */}
-      <div className="relative z-10 text-center mt-6 mb-10 px-4">
-        <h1 className="text-5xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 drop-shadow-lg">
+      <div className="relative z-10 mb-8 mt-6 px-4 text-center">
+        <h1 className="mb-2 bg-gradient-to-r from-yellow-300 via-orange-400 to-yellow-300 bg-clip-text text-4xl font-black tracking-widest text-transparent drop-shadow-[0_0_20px_rgba(250,204,21,0.3)] sm:text-5xl">
           GOBINGO
         </h1>
-        <p className="text-gray-400 font-medium mt-2 tracking-widest uppercase text-xs">
+        <p className="mt-2 text-xs font-medium uppercase tracking-widest text-slate-400">
           {t('playTagline')}
         </p>
       </div>
 
       {/* Main Content */}
       <div className="relative z-10 flex-1 px-4 pb-10">
-        <ReferralPromo />
+        <div className="relative mx-auto mb-6 max-w-md">
+          <div aria-hidden="true" className="absolute inset-2 rounded-2xl bg-purple-500/40 blur-xl" />
+          <div className="relative [&>div]:mb-0 [&>div]:rounded-2xl [&>div]:border-purple-400/30 [&>div]:backdrop-blur-md [&>div]:shadow-[0_0_25px_rgba(168,85,247,0.4)]">
+            <ReferralPromo />
+          </div>
+        </div>
         {connectionError && (
-          <p role="alert" className="text-center text-red-400 mb-4">{connectionError}</p>
+          <p role="alert" className="mb-4 text-center text-red-400">{connectionError}</p>
         )}
-        <h2 className="text-center text-xl font-bold text-white mb-6">
+        <h2 className="mb-6 text-center text-xl font-bold text-white">
           {t('chooseStake')}
         </h2>
 
-        <div className="flex flex-col gap-4 max-w-md mx-auto">
-          {stakes.map((stake, idx) => (
+        <div className="mx-auto flex max-w-md flex-col gap-4">
+          {stakes.map((stake) => (
             <div 
               key={stake} 
-              className="relative bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 flex items-center justify-between shadow-2xl hover:bg-white/10 transition-all group overflow-hidden"
+              className="group relative mb-1 flex items-center justify-between overflow-hidden rounded-2xl border border-slate-600/50 bg-gradient-to-b from-slate-700 to-slate-800 p-4 shadow-[0_8px_0_#0f172a] backdrop-blur-xl transition-all duration-100 hover:from-slate-600 hover:to-slate-700 active:translate-y-2 active:shadow-none"
             >
-              
-
               {/* Left side: Stake Value */}
-              <div className="flex flex-col">
-                <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">{t('stake')}</span>
-                <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500">
-                  {stake} <span className="text-sm">ETB</span>
+              <div className="flex flex-col items-start">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{t('stake')}</span>
+                <span className="bg-gradient-to-b from-yellow-300 to-yellow-500 bg-clip-text text-3xl font-black text-transparent">
+                  {stake} <span className="text-lg">ETB</span>
                 </span>
               </div>
 
               {/* Right side: Join Button */}
               <button
+                type="button"
                 onClick={() => handleJoin(stake)}
-                className="bg-gradient-to-r from-yellow-400 to-orange-500 text-[#0f2027] font-black text-lg px-6 py-3 rounded-xl shadow-lg shadow-orange-500/30 group-hover:scale-105 active:scale-95 transition-all"
+                className="min-h-11 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-500 px-6 py-2 text-base font-black text-white shadow-[0_4px_0_#9a3412] transition-all group-active:translate-y-1 group-active:shadow-none"
               >
                 {t('joinGame')}
               </button>
@@ -217,8 +225,8 @@ export default function Lobby() {
       </div>
 
       {/* Bottom Decorative Element */}
-      <div className="relative z-10 text-center pb-6">
-        <p className="text-xs text-gray-500">{t('securePayments')}</p>
+      <div className="relative z-10 pb-6 text-center">
+        <p className="text-xs text-slate-500">{t('securePayments')}</p>
       </div>
 
       {/* Slide-out Menu Drawer */}
