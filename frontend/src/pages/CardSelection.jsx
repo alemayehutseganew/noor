@@ -137,7 +137,6 @@ export default function CardSelection({
 
     socket.on('players_updated', handlePlayersUpdated);
     socket.on('countdown_tick', handleCountdown);
-    socket.on('game_started', redirectToGame);
     socket.on('game_in_progress', redirectToGame);
     socket.on('room_update', handleRoomUpdate);
     socket.emit('join_room', {
@@ -149,7 +148,6 @@ export default function CardSelection({
     return () => {
       socket.off('players_updated', handlePlayersUpdated);
       socket.off('countdown_tick', handleCountdown);
-      socket.off('game_started', redirectToGame);
       socket.off('game_in_progress', redirectToGame);
       socket.off('room_update', handleRoomUpdate);
     };
@@ -159,6 +157,10 @@ export default function CardSelection({
     if (!activeRoomId) return undefined;
 
     const socket = SocketService.get() || SocketService.connect();
+    const handleGameStarted = () => {
+      console.log('[SOCKET] Game started! Redirecting to game screen...');
+      navigate(`/game?roomId=${encodeURIComponent(activeRoomId)}&stake=${encodeURIComponent(stake)}`, { replace: true });
+    };
     const handleGameAborted = (data) => {
       setGameAborted(true);
       setSocketCountdown(null);
@@ -166,9 +168,13 @@ export default function CardSelection({
       showToast(data?.message || 'Not enough valid players. Game cancelled.');
     };
 
+    socket.on('game_started', handleGameStarted);
     socket.on('game_aborted', handleGameAborted);
-    return () => socket.off('game_aborted', handleGameAborted);
-  }, [activeRoomId, showToast]);
+    return () => {
+      socket.off('game_started', handleGameStarted);
+      socket.off('game_aborted', handleGameAborted);
+    };
+  }, [activeRoomId, navigate, showToast, stake]);
 
   const handleCardSelect = async (cardNumber) => {
     unlockAudio();

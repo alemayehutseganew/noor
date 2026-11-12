@@ -418,6 +418,7 @@ async function startCountdown(io, roomId) {
 
         room.status = 'PLAYING'
         room.countdownTimeLeft = null
+        console.log(`[Game] Emitting game_started for room ${roomId}`)
         io.to(roomId).emit('game_started')
         console.log(`[Game] All valid players paid. Starting game for room ${roomId}`)
 
