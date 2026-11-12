@@ -134,75 +134,83 @@ export default function AgentDashboard() {
   const progress = Math.min(Math.max((currentReferralBalance / WITHDRAWAL_THRESHOLD) * 100, 0), 100)
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#0f2027] via-[#203a43] to-[#2c5364] px-4 py-6 text-white">
+    <main className="min-h-screen bg-gradient-to-b from-[#0f172a] via-[#1e293b] to-[#020617] px-4 py-6 text-white">
       <div className="mx-auto max-w-xl">
-        <button onClick={() => navigate('/')} className="mb-5 text-yellow-400 hover:text-yellow-300">
-          ← {t('back')}
-        </button>
-        <header className="mb-6">
-          <p className="text-sm font-bold uppercase tracking-[0.2em] text-yellow-400">GOBINGO</p>
-          <h1 className="mt-1 text-3xl font-black">{t('agent_dashboard')}</h1>
+        <header className="mb-6 flex items-center gap-3 rounded-2xl border border-slate-600/50 bg-slate-800/50 p-3 shadow-2xl backdrop-blur-lg">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="flex min-h-11 items-center rounded-xl border border-slate-600/50 bg-slate-700/80 px-4 font-bold text-yellow-300 shadow-[0_4px_0_rgb(30,41,59)] transition-all hover:bg-slate-600 active:translate-y-1 active:shadow-none"
+          >
+            ← {t('back')}
+          </button>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-yellow-400">GOBINGO</p>
+            <h1 className="mt-0.5 text-xl font-black sm:text-2xl">{t('agent_dashboard')}</h1>
+          </div>
         </header>
 
         {loading ? (
-          <p className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-gray-300">
+          <p className="rounded-2xl border border-slate-700 bg-slate-800/60 p-6 text-center text-slate-300 shadow-lg backdrop-blur-md">
             {t('loading')}
           </p>
         ) : (
           <>
-            <section className="mb-4 rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl backdrop-blur-xl">
-              <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-gray-300">{t('referral_link')}</h2>
-              <p className="break-all rounded-xl bg-black/20 p-3 font-mono text-sm text-yellow-200">{referralLink}</p>
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <button
-                  onClick={copyLink}
-                  className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-[#10252c] transition hover:bg-yellow-300"
-                >
-                  {t('copy_link')}
-                </button>
-                <button
-                  onClick={shareLink}
-                  className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 font-bold transition hover:bg-white/20"
-                >
-                  {t('share_to_telegram')}
-                </button>
-              </div>
-            </section>
-
-            <section className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl backdrop-blur-xl">
-                <h2 className="text-sm font-bold uppercase tracking-wide text-gray-300">{t('total_earned')}</h2>
-                <p className="mt-2 text-3xl font-black text-emerald-300">
-                  {Number(referrals?.total_earned || 0).toFixed(2)} <span className="text-base">ETB</span>
+            <section className="mb-6 grid grid-cols-2 gap-3">
+              <div className="flex flex-col justify-between rounded-2xl border border-slate-700 bg-slate-800/60 p-4 shadow-lg backdrop-blur-md">
+                <h2 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{t('total_earned')}</h2>
+                <p className="mt-2 text-xl font-black text-emerald-400 sm:text-2xl">
+                  {Number(referrals?.total_earned || 0).toFixed(2)} <span className="text-sm">ETB</span>
                 </p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl backdrop-blur-xl">
-                <h2 className="text-sm font-bold uppercase tracking-wide text-gray-300">{t('agent_balance')}</h2>
-                <p className="mt-2 text-3xl font-black text-white">
-                  {currentReferralBalance.toFixed(2)} <span className="text-base">ETB</span>
+              <div className="flex flex-col justify-between rounded-2xl border border-slate-700 bg-slate-800/60 p-4 shadow-lg backdrop-blur-md">
+                <h2 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{t('agent_balance')}</h2>
+                <p className="mt-2 text-xl font-black text-white sm:text-2xl">
+                  {currentReferralBalance.toFixed(2)} <span className="text-sm">ETB</span>
                 </p>
                 <div
-                  className="mt-4 h-3 overflow-hidden rounded-full bg-black/40"
+                  className="mt-3 h-2 overflow-hidden rounded-full bg-slate-950/80 shadow-inner"
                   role="progressbar"
                   aria-label={t('agent_balance')}
                   aria-valuemin={0}
                   aria-valuemax={WITHDRAWAL_THRESHOLD}
                   aria-valuenow={Math.min(currentReferralBalance, WITHDRAWAL_THRESHOLD)}
                 >
-                  <div className="h-full rounded-full bg-gradient-to-r from-green-400 to-yellow-300 transition-all" style={{ width: `${progress}%` }} />
+                  <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-yellow-300 transition-all" style={{ width: `${progress}%` }} />
                 </div>
-                <p className="mt-2 text-right text-xs text-gray-400">
+                <p className="mt-2 text-right text-[10px] text-slate-400 sm:text-xs">
                   {t('referral_progress', { amount: currentReferralBalance.toFixed(2) })}
                 </p>
                 {currentReferralBalance < WITHDRAWAL_THRESHOLD && (
-                  <p className="mt-2 text-xs text-yellow-300">{t('referral_threshold')}</p>
+                  <p className="mt-1 text-[10px] text-yellow-300 sm:text-xs">{t('referral_threshold')}</p>
                 )}
               </div>
             </section>
 
+            <section className="mb-4 rounded-2xl border border-indigo-500/30 bg-indigo-900/40 p-5 shadow-[0_0_20px_rgba(99,102,241,0.2)] backdrop-blur-lg">
+              <h2 className="mb-2 text-sm font-bold text-indigo-200">{t('referral_link')}</h2>
+              <p className="break-all rounded-lg border border-slate-700 bg-slate-900/80 p-3 font-mono text-xs text-slate-300">{referralLink}</p>
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={copyLink}
+                  className="min-h-11 rounded-lg bg-gradient-to-r from-indigo-500 to-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-[0_4px_0_#312e81] transition-all active:translate-y-1 active:shadow-none"
+                >
+                  {t('copy_link')}
+                </button>
+                <button
+                  type="button"
+                  onClick={shareLink}
+                  className="min-h-11 rounded-lg bg-gradient-to-r from-sky-500 to-sky-600 px-4 py-2.5 text-xs font-bold text-white shadow-[0_4px_0_#0c4a6e] transition-all active:translate-y-1 active:shadow-none"
+                >
+                  {t('share_to_telegram')}
+                </button>
+              </div>
+            </section>
+
             {currentReferralBalance >= WITHDRAWAL_THRESHOLD && (
-              <section className="mb-4 rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl backdrop-blur-xl">
-                <label htmlFor="agent-withdraw-phone" className="mb-2 block text-sm font-bold text-gray-200">
+              <section className="mb-4 rounded-2xl border border-slate-600/50 bg-slate-800/60 p-5 shadow-xl backdrop-blur-lg">
+                <label htmlFor="agent-withdraw-phone" className="mb-2 block text-sm font-bold text-slate-200">
                   {t('phoneNumber')}
                 </label>
                 <input
@@ -211,9 +219,9 @@ export default function AgentDashboard() {
                   value={phoneNumber}
                   onChange={(event) => setPhoneNumber(event.target.value)}
                   placeholder={t('phoneNumber')}
-                  className="mb-3 w-full rounded-xl border border-white/15 bg-black/20 p-3 text-white outline-none focus:border-yellow-400"
+                  className="mb-3 w-full rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-white shadow-inner outline-none focus:border-blue-500"
                 />
-                <label htmlFor="agent-withdraw-amount" className="mb-2 block text-sm font-bold text-gray-200">
+                <label htmlFor="agent-withdraw-amount" className="mb-2 block text-sm font-bold text-slate-200">
                   {t('withdrawal_amount')}
                 </label>
                 <input
@@ -225,28 +233,31 @@ export default function AgentDashboard() {
                   value={withdrawAmount}
                   onChange={(event) => setWithdrawAmount(event.target.value)}
                   placeholder={currentReferralBalance.toFixed(2)}
-                  className="w-full rounded-xl border border-white/15 bg-black/20 p-3 text-white outline-none focus:border-yellow-400"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-white shadow-inner outline-none focus:border-blue-500"
                 />
                 <button
+                  type="button"
                   onClick={withdraw}
                   disabled={submitting || currentReferralBalance < WITHDRAWAL_THRESHOLD}
-                  className="mt-3 w-full rounded-xl bg-emerald-500 px-4 py-3 font-bold text-[#08251b] transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-3 min-h-12 w-full rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-4 py-3 font-bold text-slate-950 shadow-[0_5px_0_#065f46] transition-all active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? t('loading') : t('withdraw_agent_earnings')}
                 </button>
               </section>
             )}
 
-            <section className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl backdrop-blur-xl">
-              <h2 className="mb-4 text-lg font-bold">{t('invited_players')}</h2>
+            <section className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-800/60 shadow-lg backdrop-blur-md">
+              <div className="border-b border-slate-700/50 p-4">
+                <h2 className="font-bold text-white">{t('invited_players')}</h2>
+              </div>
               {!referrals?.referred_users?.length ? (
-                <p className="text-sm text-gray-400">{t('no_referrals_yet')}</p>
+                <p className="p-4 text-sm text-slate-400">{t('no_referrals_yet')}</p>
               ) : (
-                <ul className="divide-y divide-white/10">
+                <ul className="max-h-60 divide-y divide-slate-700/50 overflow-y-auto">
                   {referrals.referred_users.map((player, index) => (
-                    <li key={`${player.joined_at}-${index}`} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                      <span className="font-medium">{player.name}</span>
-                      <time className="shrink-0 text-xs text-gray-400">
+                    <li key={`${player.joined_at}-${index}`} className="flex items-center justify-between gap-3 p-4">
+                      <span className="text-sm font-medium text-slate-300">{player.name}</span>
+                      <time className="shrink-0 text-xs text-slate-500">
                         {new Date(player.joined_at).toLocaleDateString()}
                       </time>
                     </li>
@@ -258,7 +269,7 @@ export default function AgentDashboard() {
         )}
 
         {(error || notice) && (
-          <p className={`mt-4 rounded-xl p-3 text-center text-sm ${error ? 'bg-red-500/15 text-red-300' : 'bg-green-500/15 text-green-300'}`}>
+          <p className={`mt-4 rounded-xl border p-3 text-center text-sm ${error ? 'border-red-400/20 bg-red-500/10 text-red-300' : 'border-emerald-400/20 bg-emerald-500/10 text-emerald-300'}`}>
             {error || notice}
           </p>
         )}

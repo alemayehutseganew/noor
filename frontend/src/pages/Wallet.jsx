@@ -136,106 +136,120 @@ export default function Wallet() {
     }
   }
 
-  const inputClass = "w-full bg-[#1e3a5f] text-white placeholder-gray-400 border-2 border-gray-600 rounded-lg p-3 focus:outline-none focus:border-yellow-500"
+  const inputClass = "w-full rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-white placeholder-slate-500 shadow-inner focus:border-blue-500 focus:outline-none"
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0f2027] via-[#203a43] to-[#2c5364] text-white p-4">
-      <button onClick={() => navigate('/')} className="mb-4 text-yellow-400">← {t('back')}</button>
-      <h1 className="text-2xl font-bold mb-4">{t('wallet')}</h1>
-      {connectionError && (
-        <p role="alert" className="mb-4 text-center text-red-400">{connectionError}</p>
-      )}
+    <div className="min-h-screen bg-gradient-to-b from-[#0f172a] via-[#1e293b] to-[#020617] p-4 text-white">
+      <div className="mx-auto max-w-2xl">
+        <header className="mb-5 flex items-center gap-3 rounded-2xl border border-slate-600/50 bg-slate-800/50 p-3 shadow-2xl backdrop-blur-lg">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="flex min-h-11 items-center rounded-xl border border-slate-600/50 bg-slate-700/80 px-4 font-bold text-yellow-300 shadow-[0_4px_0_rgb(30,41,59)] transition-all hover:bg-slate-600 active:translate-y-1 active:shadow-none"
+          >
+            ← {t('back')}
+          </button>
+          <h1 className="text-xl font-black text-white sm:text-2xl">{t('wallet')}</h1>
+        </header>
+        {connectionError && (
+          <p role="alert" className="mb-4 rounded-xl border border-red-400/20 bg-red-500/10 p-3 text-center text-red-300">{connectionError}</p>
+        )}
 
       {/* Balance Card */}
-      <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mb-4">
-        <p className="text-sm text-gray-300 uppercase font-bold">{t('playable_balance')}</p>
-        <p className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500">
+      <div className="relative mb-4 overflow-hidden rounded-3xl border border-slate-600/50 bg-gradient-to-br from-slate-800/80 to-slate-900/90 p-6 text-center shadow-[0_0_30px_rgba(59,130,246,0.15)] backdrop-blur-lg">
+        <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-blue-500 to-emerald-400" />
+        <p className="mb-1 text-xs font-bold uppercase tracking-widest text-slate-400">{t('playable_balance')}</p>
+        <p className="bg-gradient-to-r from-emerald-300 to-emerald-500 bg-clip-text text-4xl font-black text-transparent drop-shadow-[0_0_15px_rgba(52,211,153,0.4)] sm:text-5xl">
           {balance} ETB
         </p>
-        <p className="text-xs text-gray-400 mt-1">{t('withdraw_anytime')}</p>
+        <p className="mt-1 text-xs text-slate-400">{t('withdraw_anytime')}</p>
       </div>
 
       {/* Manual Deposit */}
-      <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mb-4">
-        <h2 className="text-lg font-bold mb-3">{t('manualDeposit')}</h2>
-        <div className="bg-[#1e3a5f] border-2 border-yellow-500 rounded-xl p-4 mb-4">
-          <p className="text-sm text-gray-300 mb-2">{t('sendDeposit')}</p>
-          <div className="flex items-center justify-between bg-[#112A46] rounded-lg p-3">
-            <span className="text-2xl font-black text-yellow-400 tracking-wider">0989002307</span>
+      <div className="mb-4 rounded-2xl border border-slate-600/50 bg-slate-800/60 p-5 shadow-xl backdrop-blur-lg sm:p-6">
+        <h2 className="mb-3 text-lg font-bold text-slate-100">{t('manualDeposit')}</h2>
+        <div className="mb-4 rounded-xl border border-yellow-500/50 bg-gradient-to-br from-slate-800 to-slate-900 p-4 shadow-inner">
+          <p className="mb-2 text-sm text-slate-300">{t('sendDeposit')}</p>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-700 bg-slate-950/80 p-3">
+            <span className="text-xl font-black tracking-wider text-yellow-400 sm:text-2xl">0989002307</span>
             <button
+              type="button"
               onClick={() => {
                 navigator.clipboard.writeText('0989002307');
                 alert(t('numberCopied'))
               }}
-              className="bg-yellow-500 text-[#112A46] px-3 py-1 rounded text-sm font-bold"
+              className="min-h-11 rounded-lg bg-gradient-to-b from-yellow-300 to-amber-500 px-4 text-sm font-bold text-slate-950 shadow-[0_4px_0_#92400e] transition-all active:translate-y-1 active:shadow-none"
             >
               {t('copy')}
             </button>
           </div>
-          <p className="text-xs text-gray-400 mt-2">{t('accountName')} <strong>Kenaw Nuru Muhabe</strong></p>
-          <p className="text-xs text-gray-400">{t('pasteReceipt')}</p>
+          <p className="mt-2 text-xs text-slate-400">{t('accountName')} <strong className="text-slate-200">Kenaw Nuru Muhabe</strong></p>
+          <p className="text-xs text-slate-400">{t('pasteReceipt')}</p>
         </div>
         <div className="mb-3">
-          <label className="block text-sm mb-1">{t('amountToDeposit')}</label>
+          <label className="mb-1 block text-sm font-medium text-slate-200">{t('amountToDeposit')}</label>
           <input
             type="number"
             placeholder={t('exampleAmount')}
             value={depositAmount}
             onChange={(e) => setDepositAmount(e.target.value)}
-            className="w-full bg-[#1e3a5f] text-white placeholder-gray-400 border-2 border-gray-600 rounded-lg p-3 focus:outline-none focus:border-yellow-500"
+            className={inputClass}
           />
         </div>
         <div className="mb-3">
-          <label className="block text-sm mb-1">{t('receiptReference')}</label>
+          <label className="mb-1 block text-sm font-medium text-slate-200">{t('receiptReference')}</label>
           <input
             type="text"
             placeholder={t('exampleReference')}
             value={reference}
             onChange={(e) => setReference(e.target.value)}
-            className="w-full bg-[#1e3a5f] text-white placeholder-white border-2 border-gray-600 rounded-lg p-3"
+            className={inputClass}
           />
         </div>
         <button
+          type="button"
           onClick={deposit}
           disabled={loading || submitting}
-          className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-[#0f2027] font-bold py-2 rounded disabled:opacity-50 mt-2"
+          className="mt-2 min-h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-3.5 font-bold text-white shadow-[0_5px_0_#1e3a8a] transition-all active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t('verifyDeposit')}
         </button>
       </div>
 
       {/* Withdraw */}
-      <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 mb-4">
-        <h2 className="text-lg font-bold mb-2">{t('withdraw')}</h2>
-        <p className="text-sm text-gray-300 mb-2">{t('minimumWithdrawal')}</p>
+      <div className="mb-4 rounded-2xl border border-slate-600/50 bg-slate-800/60 p-5 shadow-xl backdrop-blur-lg sm:p-6">
+        <h2 className="mb-2 text-lg font-bold text-slate-100">{t('withdraw')}</h2>
+        <p className="mb-2 text-sm text-slate-300">{t('minimumWithdrawal')}</p>
         <input
           type="number"
           placeholder={t('amount')}
           value={withdrawAmount}
           onChange={(e) => setWithdrawAmount(e.target.value)}
-          className="w-full bg-[#1e3a5f] text-white placeholder-white border-2 border-gray-600 rounded-lg p-3 mb-2"
+          className={`${inputClass} mb-2`}
         />
         <input
           type="text"
           placeholder={t('phoneNumber')}
           value={phoneNumber}
           onChange={(e) => setPhoneNumber(e.target.value)}
-          className="w-full bg-[#1e3a5f] text-white placeholder-white border-2 border-gray-600 rounded-lg p-3 mb-2"
+          className={`${inputClass} mb-2`}
         />
         <button
+          type="button"
           onClick={withdraw}
           disabled={loading || submitting}
-          className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-[#0f2027] font-bold py-2 rounded disabled:opacity-50 mt-2"
+          className="mt-2 min-h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-3.5 font-bold text-white shadow-[0_5px_0_#1e3a8a] transition-all active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t('withdraw')}
         </button>
       </div>
 
       {message && (
-        <p className={`mt-4 text-center font-bold ${messageType === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+        <p className={`mt-4 rounded-xl border p-3 text-center font-bold ${messageType === 'success' ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-300' : 'border-red-400/20 bg-red-500/10 text-red-300'}`}>
           {message}
         </p>
       )}
+      </div>
     </div>
   )
 }
