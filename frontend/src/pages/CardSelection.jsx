@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useLanguage } from '../LanguageContext';
 import { fetchApi } from '../services/api';
 import SocketService from '../services/socket';
-import { unlockAudio } from '../utils/bingoSounds';
+import { getMuteState, toggleMute, unlockAudio } from '../utils/bingoSounds';
 
 const formatTime = (seconds) => {
   const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -22,7 +23,8 @@ export default function CardSelection({
   const stake = searchParams.get('stake') || '10';
   const roomId = searchParams.get('roomId');
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const { changeLanguage } = useLanguage();
 
   const [takenCards, setTakenCards] = useState([]);
   const [waitingRoom, setWaitingRoom] = useState(null);
@@ -31,6 +33,7 @@ export default function CardSelection({
   const [selectedCard, setSelectedCard] = useState(cardData?.id ? Number(cardData.id) : null);
   const [selectedMatrix, setSelectedMatrix] = useState(cardData?.matrix || null);
   const [loading, setLoading] = useState(false);
+  const [isMuted, setIsMuted] = useState(getMuteState());
   const [toast, setToast] = useState({ show: false, message: '', type: 'error' });
   const [gameAborted, setGameAborted] = useState(false);
   const toastTimeoutRef = useRef({ hide: null, clear: null });
@@ -54,6 +57,13 @@ export default function CardSelection({
     || (currentCountdown !== null && currentCountdown !== undefined && currentCountdown <= 0));
   const hasCountdown = currentCountdown !== null && currentCountdown !== undefined;
   const displayPlayersCount = gameAborted ? 0 : playersCount ?? socketPlayersCount ?? 0;
+  const isEmbedded = Boolean(onCardUpdated);
+  const handleGameAborted = useCallback((data) => {
+    setGameAborted(true);
+    setSocketCountdown(null);
+    setSocketPlayersCount(0);
+    showToast(data?.message || 'Not enough valid players. Game cancelled.');
+  }, [showToast]);
 
   useEffect(() => () => {
     clearTimeout(toastTimeoutRef.current.hide);
@@ -105,7 +115,7 @@ export default function CardSelection({
   }, [stake]);
 
   useEffect(() => {
-    if (!activeRoomId || onCardUpdated) return undefined;
+    if (!activeRoomId) return undefined;
 
     const socket = SocketService.connect();
     const handlePlayersUpdated = (data) => {
@@ -126,8 +136,13 @@ export default function CardSelection({
       }
     };
 
-    const redirectToGame = () => {
+    const handleGameStarted = () => {
+      console.log('[SOCKET] Game started! Redirecting to game screen...');
+      if (isEmbedded) return;
       navigate(`/game?roomId=${encodeURIComponent(activeRoomId)}&stake=${encodeURIComponent(stake)}`, { replace: true });
+    };
+    const redirectToGame = () => {
+      if (!isEmbedded) handleGameStarted();
     };
     const handleRoomUpdate = (data) => {
       if (String(data?.status).toLowerCase() === 'playing') {
@@ -137,44 +152,27 @@ export default function CardSelection({
 
     socket.on('players_updated', handlePlayersUpdated);
     socket.on('countdown_tick', handleCountdown);
+    socket.on('game_started', handleGameStarted);
+    socket.on('game_aborted', handleGameAborted);
     socket.on('game_in_progress', redirectToGame);
-    socket.on('room_update', handleRoomUpdate);
-    socket.emit('join_room', {
-      roomId: activeRoomId,
-      stake: Number(stake),
-      observeOnly: !roomId,
-    });
+    if (!isEmbedded) socket.on('room_update', handleRoomUpdate);
+    if (!isEmbedded) {
+      socket.emit('join_room', {
+        roomId: activeRoomId,
+        stake: Number(stake),
+        observeOnly: !roomId,
+      });
+    }
 
     return () => {
       socket.off('players_updated', handlePlayersUpdated);
       socket.off('countdown_tick', handleCountdown);
+      socket.off('game_started', handleGameStarted);
+      socket.off('game_aborted', handleGameAborted);
       socket.off('game_in_progress', redirectToGame);
       socket.off('room_update', handleRoomUpdate);
     };
-  }, [activeRoomId, navigate, onCardUpdated, roomId, stake]);
-
-  useEffect(() => {
-    if (!activeRoomId) return undefined;
-
-    const socket = SocketService.get() || SocketService.connect();
-    const handleGameStarted = () => {
-      console.log('[SOCKET] Game started! Redirecting to game screen...');
-      navigate(`/game?roomId=${encodeURIComponent(activeRoomId)}&stake=${encodeURIComponent(stake)}`, { replace: true });
-    };
-    const handleGameAborted = (data) => {
-      setGameAborted(true);
-      setSocketCountdown(null);
-      setSocketPlayersCount(0);
-      showToast(data?.message || 'Not enough valid players. Game cancelled.');
-    };
-
-    socket.on('game_started', handleGameStarted);
-    socket.on('game_aborted', handleGameAborted);
-    return () => {
-      socket.off('game_started', handleGameStarted);
-      socket.off('game_aborted', handleGameAborted);
-    };
-  }, [activeRoomId, navigate, showToast, stake]);
+  }, [activeRoomId, handleGameAborted, isEmbedded, navigate, roomId, stake]);
 
   const handleCardSelect = async (cardNumber) => {
     unlockAudio();
@@ -304,30 +302,58 @@ export default function CardSelection({
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-[#0f172a] text-white">
       <div className="flex-1 overflow-y-auto p-4 pb-36">
         <div className="mx-auto max-w-4xl">
-          <div className="mx-auto mb-6 w-full max-w-lg">
+          <div className="mx-auto mb-4 w-full max-w-lg">
             {!roomId && (
               <button
                 type="button"
                 onClick={() => navigate('/')}
-                className="mb-4 flex items-center gap-1 font-bold text-yellow-500 transition-colors hover:text-yellow-400"
+                className="mb-3 flex min-h-11 items-center gap-1 rounded-xl border border-slate-600/50 bg-slate-800/70 px-3 font-bold text-yellow-400 shadow-md transition-colors hover:text-yellow-300"
               >
                 <span>←</span> {t('back')}
               </button>
             )}
 
-            <div className="flex w-full items-center justify-between gap-2">
-              <div className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-600/50 bg-[#1e293b]/80 px-3 py-1.5 text-sm font-bold text-slate-200 shadow-lg backdrop-blur-sm">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-                </span>
-                {t('players', { defaultValue: 'Players' })}: {displayPlayersCount}
+            <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-600/50 bg-slate-800/60 p-2.5 shadow-2xl backdrop-blur-lg">
+              <div className="flex flex-wrap gap-1.5 text-xs font-bold sm:gap-2 sm:text-sm">
+                <div className="flex min-h-10 items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/80 px-2.5 shadow-inner">
+                  <span className="text-slate-400">{t('win')}:</span>
+                  <span className="text-emerald-400">--</span>
+                </div>
+                <div className="flex min-h-10 items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/80 px-2.5 shadow-inner">
+                  <span className="text-slate-400">{t('stake')}:</span>
+                  <span className="text-blue-400">{stake}</span>
+                </div>
+                <div className="flex min-h-10 items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/80 px-2.5 shadow-inner">
+                  <span className="text-slate-400">{t('call')}:</span>
+                  <span className="text-purple-400">--</span>
+                </div>
+                <div className="flex min-h-10 items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/80 px-2.5 shadow-inner">
+                  <span className="text-slate-400">{t('players')}:</span>
+                  <span className="text-yellow-400">{displayPlayersCount}</span>
+                </div>
               </div>
-
-              <h1 className="whitespace-nowrap bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-right text-xl font-extrabold tracking-tight text-transparent drop-shadow-sm sm:text-2xl">
-                {t('selectCard')} <span className="text-lg sm:text-xl">({stake} ETB)</span>
-              </h1>
+              <div className="ml-auto flex gap-2">
+                <button
+                  type="button"
+                  aria-label={i18n.language === 'en' ? 'Change language to Amharic' : 'Change language to English'}
+                  onClick={() => changeLanguage(i18n.language === 'en' ? 'am' : 'en')}
+                  className="h-11 min-w-11 rounded-full bg-slate-700 px-3 text-xs font-bold text-white shadow-[0_4px_0_rgb(51,65,85)] transition-all active:translate-y-1 active:shadow-none"
+                >
+                  {i18n.language === 'en' ? 'AM' : 'EN'}
+                </button>
+                <button
+                  type="button"
+                  aria-label={isMuted ? t('unmuteSound') : t('muteSound')}
+                  onClick={() => setIsMuted(toggleMute())}
+                  className="h-11 min-w-11 rounded-full bg-slate-700 p-2 text-white shadow-[0_4px_0_rgb(51,65,85)] transition-all active:translate-y-1 active:shadow-none"
+                >
+                  {isMuted ? '\u{1F507}' : '\u{1F50A}'}
+                </button>
+              </div>
             </div>
+            <h1 className="whitespace-nowrap bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-center text-xl font-extrabold tracking-tight text-transparent drop-shadow-sm sm:text-2xl">
+              {t('selectCard')} <span className="text-lg sm:text-xl">({stake} ETB)</span>
+            </h1>
           </div>
 
           <div className="mx-auto grid max-w-lg grid-cols-6 gap-1 p-2">

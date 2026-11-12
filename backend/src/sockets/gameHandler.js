@@ -257,6 +257,10 @@ async function startCountdown(io, roomId) {
     clearInterval(room.intervalId)
     room.intervalId = null
   }
+  if (room.countdownIntervalId) {
+    clearInterval(room.countdownIntervalId)
+    room.countdownIntervalId = null
+  }
   room.status = 'COUNTDOWN'
   console.log(`[Game] Starting countdown for ${roomId}`)
 
@@ -269,6 +273,7 @@ async function startCountdown(io, roomId) {
     console.error('[Game] Failed to update countdown status:', err)
     room.status = 'WAITING'
     room.countdownTimeLeft = null
+    room.countdownIntervalId = null
     await db('game_rooms')
       .where({ id: roomId })
       .update({ status: 'WAITING' })
@@ -289,6 +294,7 @@ async function startCountdown(io, roomId) {
 
     if (timeLeft <= 0) {
       clearInterval(countdownInterval)
+      room.countdownIntervalId = null
       try {
         const settlement = await db.transaction(async (trx) => {
           const participants = await trx('room_participants')
@@ -407,6 +413,7 @@ async function startCountdown(io, roomId) {
         if (!settlement.success) {
           room.status = 'WAITING'
           room.countdownTimeLeft = null
+          room.countdownIntervalId = null
           await db('game_rooms').where({ id: roomId }).update({ status: 'WAITING' })
           const message = settlement.error === 'NOT_ENOUGH_PLAYERS'
             ? 'Not enough players. Game cancelled.'
@@ -418,6 +425,7 @@ async function startCountdown(io, roomId) {
 
         room.status = 'PLAYING'
         room.countdownTimeLeft = null
+        room.countdownIntervalId = null
         console.log(`[Game] Emitting game_started for room ${roomId}`)
         io.to(roomId).emit('game_started')
         console.log(`[Game] All valid players paid. Starting game for room ${roomId}`)
@@ -483,6 +491,7 @@ async function startCountdown(io, roomId) {
         console.error('[Game] Error during countdown end:', err)
         room.status = 'WAITING'
         room.countdownTimeLeft = null
+        room.countdownIntervalId = null
         await db('game_rooms')
           .where({ id: roomId })
           .update({ status: 'WAITING' })
@@ -492,6 +501,7 @@ async function startCountdown(io, roomId) {
       }
     }
   }, 1000)
+  room.countdownIntervalId = countdownInterval
 }
 
 function initGameHandler(io) {
@@ -514,6 +524,13 @@ function initGameHandler(io) {
           : null,
         intervalId: null,
       }
+    }
+
+    if (room?.status === 'COUNTDOWN' && !room.countdownIntervalId) {
+      console.warn(`[Game] Recovering countdown for room ${roomId} without an active timer.`)
+      room.status = 'WAITING'
+      room.countdownTimeLeft = null
+      await db('game_rooms').where({ id: roomId }).update({ status: 'WAITING' })
     }
 
     if (!room || room.status !== 'WAITING') {
