@@ -361,18 +361,39 @@ async function startCountdown(io, roomId) {
             return { success: false, error: 'NOT_ENOUGH_VALID_PLAYERS', poorPlayers, cardlessPlayers }
           }
 
+          const walletUpdates = []
           for (const validPlayer of validPlayers) {
             await trx('users').where({ id: validPlayer.user.id }).decrement('wallet_balance', room.stake)
+            const updatedUser = await trx('users')
+              .select('wallet_balance')
+              .where({ id: validPlayer.user.id })
+              .first()
             await trx('financial_ledger').insert({
               user_id: validPlayer.user.id,
               amount: -room.stake,
               type: 'ENTRY_FEE'
             })
+            walletUpdates.push({
+              userId: validPlayer.user.id,
+              newBalance: Number(updatedUser.wallet_balance),
+            })
           }
           await trx('game_rooms').where({ id: roomId }).update({ status: 'PLAYING' })
 
-          return { success: true, validPlayerCount: validPlayers.length, poorPlayers, cardlessPlayers }
+          return {
+            success: true,
+            validPlayerCount: validPlayers.length,
+            poorPlayers,
+            cardlessPlayers,
+            walletUpdates,
+          }
         })
+
+        if (settlement.success) {
+          for (const update of settlement.walletUpdates) {
+            io.to(`user_${update.userId}`).emit('wallet_updated', { newBalance: update.newBalance })
+          }
+        }
 
         for (const cardlessPlayer of settlement.cardlessPlayers) {
           const playerSocketId = Object.keys(room.players).find((id) => (
@@ -822,8 +843,9 @@ function initGameHandler(io) {
 
         // Process payouts in DB
         const referralBalanceUpdatesCents = new Map()
-        await db.transaction(async (trx) => {
+        const winnerWalletUpdates = await db.transaction(async (trx) => {
           const referredWinners = []
+          const walletUpdates = []
           for (const winnerId of room.claimedBy) {
             let winnerUser = await trx('users')
               .select('id', 'first_name', 'username', 'referred_by')
@@ -842,6 +864,14 @@ function initGameHandler(io) {
               .where({ room_id: roomId, user_id: winnerUser.id })
               .update({ is_winner: true });
             await trx('users').where({ id: winnerUser.id }).increment('wallet_balance', payoutPerWinner);
+            const updatedWinner = await trx('users')
+              .select('wallet_balance')
+              .where({ id: winnerUser.id })
+              .first()
+            walletUpdates.push({
+              userId: winnerUser.id,
+              newBalance: Number(updatedWinner.wallet_balance),
+            })
             await trx('financial_ledger').insert({
               user_id: winnerUser.id,
               amount: payoutPerWinner,
@@ -894,7 +924,12 @@ function initGameHandler(io) {
             }
           }
           await trx('game_rooms').where({ id: roomId }).update({ status: 'ENDED' });
+          return walletUpdates
         });
+
+        for (const update of winnerWalletUpdates) {
+          io.to(`user_${update.userId}`).emit('wallet_updated', { newBalance: update.newBalance })
+        }
 
         for (const [inviterId, referralBalanceCents] of referralBalanceUpdatesCents) {
           io.to(`user_${inviterId}`).emit('wallet_updated', {
