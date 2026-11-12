@@ -275,7 +275,7 @@ export default function CardSelection({
             </div>
           )}
 
-          <div className="grid grid-cols-6 gap-1 p-2 sm:grid-cols-8 sm:gap-1.5 md:grid-cols-10">
+          <div className="mx-auto grid max-w-lg grid-cols-6 gap-1 p-2 sm:gap-1.5">
             {Array.from({ length: 400 }, (_, i) => i + 1).map((cardNumber) => {
               const isSelected = currentSelectedCard === cardNumber;
               const isTaken = takenCards.includes(cardNumber) && !isSelected;
@@ -288,12 +288,12 @@ export default function CardSelection({
                   disabled={isDisabled}
                   aria-pressed={isSelected}
                   onClick={() => handleCardSelect(cardNumber)}
-                  className={`relative flex h-9 shrink-0 items-center justify-center rounded-md border px-1 text-[10px] font-bold transition-all duration-100 touch-manipulation sm:h-10 sm:text-xs ${
+                  className={`relative flex h-9 shrink-0 select-none items-center justify-center rounded-lg border text-xs font-bold transition-all duration-100 touch-manipulation sm:h-10 sm:text-sm ${
                     isSelected
-                      ? 'border-blue-700 border-b-2 bg-blue-500 text-white shadow-[0_2px_0_rgb(29,78,216)] active:translate-y-0.5 active:shadow-none'
+                      ? 'scale-[0.96] border-blue-900 bg-gradient-to-b from-blue-400 to-blue-600 text-white shadow-[inset_0_4px_8px_rgba(0,0,0,0.4)]'
                       : isDisabled
-                        ? 'cursor-not-allowed border-gray-900 border-b-2 bg-gray-800 text-gray-600 opacity-60'
-                        : 'border-gray-300 border-b-2 bg-white text-black shadow-[0_2px_0_rgb(156,163,175)] hover:-translate-y-0.5 hover:shadow-[0_3px_0_rgb(156,163,175)] active:translate-y-0.5 active:shadow-none'
+                        ? 'cursor-not-allowed border-slate-800 bg-slate-900 text-slate-600 opacity-50 shadow-none'
+                        : 'border-slate-300 bg-white text-slate-800 shadow-[0_4px_0_rgb(148,163,184)] hover:-translate-y-0.5 hover:shadow-[0_5px_0_rgb(148,163,184)] active:translate-y-1 active:shadow-none'
                   }`}
                 >
                   {cardNumber}
@@ -304,24 +304,36 @@ export default function CardSelection({
         </div>
       </div>
 
-      <div className="fixed bottom-0 z-30 h-32 w-full border-t border-gray-700 bg-[#0f172a] p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
+      <div className="fixed bottom-0 z-30 h-32 w-full border-t border-slate-700 bg-[#0f172a]/95 p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] backdrop-blur-lg">
         <div className="mx-auto flex h-full max-w-4xl gap-2">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-xl bg-white p-1.5 text-gray-900">
-            <div className="mb-1 shrink-0 truncate text-center text-[10px] font-bold leading-3 sm:text-xs">
+          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-600/50 bg-slate-800/80 p-2 text-slate-100 shadow-xl backdrop-blur-md">
+            <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-blue-500 via-purple-500 to-red-500" />
+            <div className="mb-1.5 mt-0.5 shrink-0 truncate text-center text-[10px] font-bold leading-3 text-slate-300 sm:text-xs">
               {currentSelectedCard ? t('cardNo', { number: currentSelectedCard }) : t('selectCard')}
             </div>
             {currentSelectedMatrix ? (
-              <div className="grid min-h-0 flex-1 grid-cols-5 grid-rows-6 gap-px">
-                {['B', 'I', 'N', 'G', 'O'].map((letter) => (
-                  <div key={letter} className="flex min-h-0 items-center justify-center rounded bg-blue-700 text-[8px] font-bold leading-none text-white sm:text-[10px]">
-                    {letter}
-                  </div>
-                ))}
+              <div className="grid min-h-0 flex-1 grid-cols-5 grid-rows-6 gap-0.5">
+                {['B', 'I', 'N', 'G', 'O'].map((letter, index) => {
+                  const headerGradients = [
+                    'from-blue-500 to-blue-700',
+                    'from-red-500 to-red-700',
+                    'from-purple-500 to-purple-700',
+                    'from-green-500 to-green-700',
+                    'from-yellow-400 to-yellow-600',
+                  ];
+                  return (
+                    <div key={letter} className={`flex min-h-0 items-center justify-center rounded-t-sm bg-gradient-to-b ${headerGradients[index]} text-[9px] font-black leading-none text-white shadow-sm`}>
+                      {letter}
+                    </div>
+                  );
+                })}
                 {currentSelectedMatrix.flat().map((number, index) => (
                   <div
                     key={index}
-                    className={`flex min-h-0 items-center justify-center rounded text-[8px] font-bold leading-none sm:text-[10px] ${
-                      index === 12 || number === 'FREE' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100'
+                    className={`flex min-h-0 items-center justify-center rounded-sm text-[9px] font-bold leading-none ${
+                      index === 12 || number === 'FREE'
+                        ? 'bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)]'
+                        : 'bg-slate-100 text-slate-800 shadow-[0_2px_0_rgb(148,163,184)]'
                     }`}
                   >
                     {index === 12 || number === 'FREE' ? 'F' : number}
@@ -329,32 +341,50 @@ export default function CardSelection({
                 ))}
               </div>
             ) : (
-              <div className="flex min-h-0 flex-1 items-center justify-center text-center text-[10px] text-gray-500">
+              <div className="flex min-h-0 flex-1 items-center justify-center text-center text-[10px] text-slate-500">
                 {roomId ? t('loadingCard') : t('selectCard')}
               </div>
             )}
           </div>
 
-          <div className="flex min-w-0 flex-1 flex-col items-center justify-center rounded-xl bg-blue-900/50 p-2 text-center">
+          <div className="relative flex min-w-0 flex-1 flex-col items-center justify-center rounded-2xl border border-slate-700 bg-gradient-to-br from-slate-900 to-slate-800 p-3 text-center shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)]">
             {displayPlayersCount < 2 ? (
-              <span className="animate-pulse text-xs font-semibold leading-tight text-blue-100 sm:text-sm">
-                {t('waitingPlayers')}
-              </span>
+              <div className="flex flex-col items-center gap-1.5">
+                <div className="relative flex h-8 w-8 items-center justify-center">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+                  <span className="relative inline-flex h-4 w-4 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]" />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-blue-200 sm:text-xs">
+                  {t('waitingPlayers')}
+                </span>
+                <span className="text-[9px] text-slate-400">
+                  ({displayPlayersCount}/2)
+                </span>
+              </div>
             ) : hasCountdown ? (
-              <>
-                <span className="text-[10px] font-semibold leading-tight text-blue-100 sm:text-xs">
+              <div className="flex w-full flex-col items-center">
+                <span className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
                   {t('countdown')}
                 </span>
-                <span className="mt-1 text-2xl font-black tabular-nums sm:text-4xl">
+                <span className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-3xl font-black tabular-nums text-transparent drop-shadow-[0_0_10px_rgba(250,204,21,0.3)] sm:text-4xl">
                   {formatTime(Math.max(0, Number(currentCountdown)))}
                 </span>
-              </>
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-700">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 transition-all duration-1000 ease-linear"
+                    style={{ width: `${Math.min(100, Math.max(0, (Number(currentCountdown) / 30) * 100))}%` }}
+                  />
+                </div>
+              </div>
             ) : (
-              <span className="text-xs font-semibold text-blue-100 sm:text-sm">
-                {t('getReady')}
-              </span>
+              <div className="flex flex-col items-center gap-1">
+                <div className="mb-1 h-2 w-2 animate-pulse rounded-full bg-yellow-400" />
+                <span className="text-xs font-bold uppercase tracking-wider text-yellow-400">
+                  {t('getReady')}
+                </span>
+              </div>
             )}
-            {loading && <span className="mt-1 text-[10px] text-blue-100">{t('loadingCard')}</span>}
+            {loading && <span className="absolute bottom-1 text-[9px] text-blue-300 animate-pulse">{t('loadingCard')}</span>}
           </div>
         </div>
       </div>
