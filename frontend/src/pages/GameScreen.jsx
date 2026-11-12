@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import CardSelection from './CardSelection';
 import SocketService from '../services/socket';
+import { useWallet } from '../WalletContext';
 import { getMuteState, playBallCall, toggleMute } from '../utils/bingoSounds';
 
 const formatTime = (seconds) => {
@@ -42,6 +43,7 @@ const GameScreen = () => {
   const spectatorFromUrl = searchParams.get('spectator') === 'true';
   const userId = localStorage.getItem('dbUserId');
   const { t, i18n } = useTranslation();
+  const { balance } = useWallet();
 
   const [calledNumbers, setCalledNumbers] = useState([]);
   const [currentBall, setCurrentBall] = useState(null);
@@ -255,7 +257,13 @@ const GameScreen = () => {
               </div>
               <div className="flex min-h-11 items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/80 px-3 shadow-inner"><span className="text-slate-400">{t('players')}:</span><span className="text-violet-300">{playersCount}</span></div>
             </div>
-            <div className="ml-auto flex gap-2 text-xs">
+            <div className="ml-auto flex items-center gap-2 text-xs">
+              <div className="flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-900/80 px-3 shadow-inner">
+                <span className="text-sm text-yellow-400" aria-hidden="true">💰</span>
+                <span className="text-sm font-black tabular-nums text-white sm:text-base">
+                  {Number(balance).toFixed(2)} <span className="text-[10px] font-bold text-slate-400">ETB</span>
+                </span>
+              </div>
               <button type="button" onClick={() => i18n.changeLanguage(i18n.language === 'en' ? 'am' : 'en')} className="h-11 min-w-11 rounded-full bg-slate-700 px-3 font-bold text-white shadow-[0_4px_0_rgb(51,65,85)] transition-all active:translate-y-1 active:shadow-none">
                 {i18n.language === 'en' ? 'AM' : 'EN'}
               </button>
@@ -365,7 +373,13 @@ const GameScreen = () => {
           <div className="flex min-h-11 items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/80 px-3 shadow-inner"><span className="text-slate-400">{t('call')}:</span><span className="text-amber-300">{gameStarted ? calledNumbers.length : '--'}</span></div>
           <div className="flex min-h-11 items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/80 px-3 shadow-inner"><span className="text-slate-400">{t('players')}:</span><span className="text-violet-300">{playersCount}</span></div>
         </div>
-        <div className="ml-auto flex gap-2 text-xs">
+        <div className="ml-auto flex items-center gap-2 text-xs">
+          <div className="flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-900/80 px-3 shadow-inner">
+            <span className="text-sm text-yellow-400" aria-hidden="true">💰</span>
+            <span className="text-sm font-black tabular-nums text-white sm:text-base">
+              {Number(balance).toFixed(2)} <span className="text-[10px] font-bold text-slate-400">ETB</span>
+            </span>
+          </div>
           <button type="button" onClick={() => i18n.changeLanguage(i18n.language === 'en' ? 'am' : 'en')} className="h-11 min-w-11 rounded-full bg-slate-700 px-3 font-bold text-white shadow-[0_4px_0_rgb(51,65,85)] transition-all hover:bg-slate-600 active:translate-y-1 active:shadow-none">
             {i18n.language === 'en' ? 'AM' : 'EN'}
           </button>
