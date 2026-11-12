@@ -120,6 +120,67 @@ router.get('/stats', adminAuth, async (req, res) => {
   }
 })
 
+router.post('/broadcast', adminAuth, async (req, res) => {
+  const { message, bonusAmount } = req.body || {}
+  const normalizedMessage = typeof message === 'string' ? message.trim() : ''
+  const amount = bonusAmount === undefined || bonusAmount === null || bonusAmount === ''
+    ? 0
+    : Number(bonusAmount)
+
+  if (message !== undefined && typeof message !== 'string') {
+    return res.status(400).json({ error: 'Message must be a string.' })
+  }
+  if (!Number.isFinite(amount) || amount < 0) {
+    return res.status(400).json({ error: 'Bonus amount must be a non-negative number.' })
+  }
+  if (!normalizedMessage && amount <= 0) {
+    return res.status(400).json({ error: 'Provide a message or a bonus amount.' })
+  }
+
+  const bot = req.app.get('bot')
+  if (!bot?.telegram || typeof bot.telegram.sendMessage !== 'function') {
+    console.error('[Admin] Telegram bot unavailable; broadcast was not processed.')
+    return res.status(503).json({ error: 'Telegram messaging is currently unavailable.' })
+  }
+
+  try {
+    const users = await db('users').select('id', 'telegram_id')
+
+    if (amount > 0 && users.length > 0) {
+      await db.transaction(async (trx) => {
+        await trx('users').increment('wallet_balance', amount)
+        await trx('financial_ledger').insert(users.map(user => ({
+          user_id: user.id,
+          amount,
+          type: 'ADMIN_BONUS',
+          reference: 'Admin broadcast bonus',
+          created_at: new Date(),
+        })))
+      })
+    }
+
+    const bonusMessage = amount > 0 ? `You have received a bonus of ${amount} ETB!` : ''
+    const text = [normalizedMessage, bonusMessage].filter(Boolean).join('\n\n')
+    let successCount = 0
+    let failCount = 0
+
+    for (const user of users) {
+      try {
+        await bot.telegram.sendMessage(user.telegram_id, text)
+        successCount++
+      } catch (err) {
+        failCount++
+        console.error(`[Admin] Broadcast delivery failed for user ${user.id}:`, err.message)
+      }
+    }
+
+    return res.json({ success: true, successCount, failCount, total: users.length })
+  } catch (err) {
+    console.error('[BROADCAST ERROR]', err)
+    return res.status(500).json({ error: 'Failed to process broadcast.' })
+  }
+})
+
 router.get('/users', adminAuth, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1

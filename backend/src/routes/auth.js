@@ -95,10 +95,17 @@ router.post('/login', async (req, res) => {
             telegram_id: telegramId,
             username,
             first_name: tgUser.first_name || null,
-            wallet_balance: 0,
+            wallet_balance: 20,
             referred_by: inviter?.id || null,
           })
           .returning(userFields)
+        await trx('financial_ledger').insert({
+          user_id: created.id,
+          amount: 20,
+          type: 'WELCOME_BONUS',
+          reference: 'First time registration bonus',
+          created_at: new Date(),
+        })
         return created
       })
     } else {

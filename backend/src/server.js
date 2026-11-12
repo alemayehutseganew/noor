@@ -86,6 +86,7 @@ console.log('✅ API routes mounted')
 
 // 8. TELEGRAM WEBHOOK (Must be placed BEFORE the 404 handler)
 const { bot } = require('./bot/index')
+app.set('bot', bot)
 
 app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => {
   console.log('[WEBHOOK TRACE] Received update from Telegram:', req.body?.update_id)
