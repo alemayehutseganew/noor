@@ -32,6 +32,7 @@ export default function CardSelection({
   const [selectedMatrix, setSelectedMatrix] = useState(cardData?.matrix || null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '', type: 'error' });
+  const [gameAborted, setGameAborted] = useState(false);
   const toastTimeoutRef = useRef({ hide: null, clear: null });
   const cardSelectionVersionRef = useRef(0);
   const showToast = useCallback((message, type = 'error') => {
@@ -48,11 +49,11 @@ export default function CardSelection({
   const currentSelectedCard = selectedCard ?? (cardData?.id ? Number(cardData.id) : null);
   const currentSelectedMatrix = selectedCard === null ? cardData?.matrix || null : selectedMatrix;
   const activeRoomId = roomId || waitingRoom?.roomId;
-  const currentCountdown = countdown ?? socketCountdown;
-  const selectionLocked = isGameStarted
-    || (currentCountdown !== null && currentCountdown !== undefined && currentCountdown <= 0);
+  const currentCountdown = gameAborted ? null : countdown ?? socketCountdown;
+  const selectionLocked = !gameAborted && (isGameStarted
+    || (currentCountdown !== null && currentCountdown !== undefined && currentCountdown <= 0));
   const hasCountdown = currentCountdown !== null && currentCountdown !== undefined;
-  const displayPlayersCount = playersCount ?? socketPlayersCount ?? 0;
+  const displayPlayersCount = gameAborted ? 0 : playersCount ?? socketPlayersCount ?? 0;
 
   useEffect(() => () => {
     clearTimeout(toastTimeoutRef.current.hide);
@@ -112,12 +113,21 @@ export default function CardSelection({
       if (Number.isFinite(count)) setSocketPlayersCount(count);
     };
     const handleCountdown = (data) => {
-      const timeLeft = Number(data?.timeLeft);
-      if (Number.isFinite(timeLeft)) setSocketCountdown(timeLeft);
+      const value = data?.timeLeft ?? data?.seconds;
+      if (value === null || value === undefined) {
+        setGameAborted(false);
+        setSocketCountdown(null);
+        return;
+      }
+      const timeLeft = Number(value);
+      if (Number.isFinite(timeLeft)) {
+        setGameAborted(false);
+        setSocketCountdown(timeLeft);
+      }
     };
 
     const redirectToGame = () => {
-      navigate(`/game?roomId=${encodeURIComponent(activeRoomId)}&stake=${encodeURIComponent(stake)}`);
+      navigate(`/game?roomId=${encodeURIComponent(activeRoomId)}&stake=${encodeURIComponent(stake)}`, { replace: true });
     };
     const handleRoomUpdate = (data) => {
       if (String(data?.status).toLowerCase() === 'playing') {
@@ -144,6 +154,21 @@ export default function CardSelection({
       socket.off('room_update', handleRoomUpdate);
     };
   }, [activeRoomId, navigate, onCardUpdated, roomId, stake]);
+
+  useEffect(() => {
+    if (!activeRoomId) return undefined;
+
+    const socket = SocketService.get() || SocketService.connect();
+    const handleGameAborted = (data) => {
+      setGameAborted(true);
+      setSocketCountdown(null);
+      setSocketPlayersCount(0);
+      showToast(data?.message || 'Not enough valid players. Game cancelled.');
+    };
+
+    socket.on('game_aborted', handleGameAborted);
+    return () => socket.off('game_aborted', handleGameAborted);
+  }, [activeRoomId, showToast]);
 
   const handleCardSelect = async (cardNumber) => {
     unlockAudio();

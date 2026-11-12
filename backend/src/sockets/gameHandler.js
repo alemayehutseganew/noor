@@ -268,6 +268,12 @@ async function startCountdown(io, roomId) {
   } catch (err) {
     console.error('[Game] Failed to update countdown status:', err)
     room.status = 'WAITING'
+    room.countdownTimeLeft = null
+    await db('game_rooms')
+      .where({ id: roomId })
+      .update({ status: 'WAITING' })
+      .catch((resetError) => console.error(`[Game] Failed to reset room ${roomId} after countdown setup error:`, resetError))
+    io.to(roomId).emit('countdown_tick', { timeLeft: null })
     io.to(roomId).emit('game_aborted', { message: 'Server error. Game cancelled.' })
     return
   }
@@ -400,6 +406,7 @@ async function startCountdown(io, roomId) {
 
         if (!settlement.success) {
           room.status = 'WAITING'
+          room.countdownTimeLeft = null
           await db('game_rooms').where({ id: roomId }).update({ status: 'WAITING' })
           const message = settlement.error === 'NOT_ENOUGH_PLAYERS'
             ? 'Not enough players. Game cancelled.'
@@ -410,6 +417,7 @@ async function startCountdown(io, roomId) {
         }
 
         room.status = 'PLAYING'
+        room.countdownTimeLeft = null
         io.to(roomId).emit('game_started')
         console.log(`[Game] All valid players paid. Starting game for room ${roomId}`)
 
@@ -473,7 +481,11 @@ async function startCountdown(io, roomId) {
       } catch (err) {
         console.error('[Game] Error during countdown end:', err)
         room.status = 'WAITING'
-        await db('game_rooms').where({ id: roomId }).update({ status: 'WAITING' }).catch(() => {})
+        room.countdownTimeLeft = null
+        await db('game_rooms')
+          .where({ id: roomId })
+          .update({ status: 'WAITING' })
+          .catch((resetError) => console.error(`[Game] Failed to reset room ${roomId} after settlement error:`, resetError))
         io.to(roomId).emit('countdown_tick', { timeLeft: null })
         io.to(roomId).emit('game_aborted', { message: 'Server error. Game cancelled.' })
       }
