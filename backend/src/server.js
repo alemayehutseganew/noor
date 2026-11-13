@@ -125,6 +125,65 @@ app.use((err, req, res, next) => {
 const server = http.createServer(app)
 let io
 
+async function performStartupCleanup() {
+  const db = require('./db')
+  console.log('[Cleanup] Running startup recovery sweep...')
+  try {
+    const stuckRooms = await db('game_rooms')
+      .whereIn('status', ['COUNTDOWN', 'PLAYING', 'CLAIMING'])
+      .orWhereNotIn('status', ['WAITING', 'PLAYING', 'CLAIMING', 'ENDED'])
+      .orWhereNull('status')
+      .orWhere(function () {
+        this.where('status', 'WAITING')
+          .andWhere('created_at', '<', db.raw("NOW() - INTERVAL '2 hours'"))
+      })
+
+    if (stuckRooms.length === 0) {
+      console.log('[Cleanup] No stuck rooms found. System is clean.')
+      return
+    }
+
+    const roomIds = stuckRooms.map((room) => room.id)
+    console.log(`[Cleanup] Found ${roomIds.length} stuck rooms. Purging...`)
+    await db.transaction(async (trx) => {
+      await trx('room_card_selections').whereIn('room_id', roomIds).del()
+      await trx('room_participants').whereIn('room_id', roomIds).del()
+      await trx('game_rooms').whereIn('id', roomIds).update({
+        status: 'WAITING',
+        called_numbers: JSON.stringify([]),
+        winning_pattern: null,
+      })
+    })
+    console.log('[Cleanup] Startup sweep complete. Stuck rooms purged.')
+  } catch (err) {
+    console.error('[Cleanup] Startup sweep failed:', err)
+  }
+}
+
+function startPeriodicCleanup() {
+  const db = require('./db')
+  setInterval(async () => {
+    try {
+      console.log('[Cron] Running periodic zombie room cleanup...')
+      const staleRooms = await db('game_rooms')
+        .whereIn('status', ['WAITING', 'COUNTDOWN'])
+        .where('created_at', '<', db.raw("NOW() - INTERVAL '30 minutes'"))
+
+      if (staleRooms.length === 0) return
+
+      const roomIds = staleRooms.map((room) => room.id)
+      await db.transaction(async (trx) => {
+        await trx('room_card_selections').whereIn('room_id', roomIds).del()
+        await trx('room_participants').whereIn('room_id', roomIds).del()
+        await trx('game_rooms').whereIn('id', roomIds).del()
+      })
+      console.log(`[Cron] Purged ${roomIds.length} abandoned rooms.`)
+    } catch (err) {
+      console.error('[Cron] Periodic cleanup failed:', err)
+    }
+  }, 5 * 60 * 1000)
+}
+
 function setupRealtime() {
   const { setupSocket } = require('./sockets/gameHandler')
   io = setupSocket(server)
@@ -171,6 +230,9 @@ async function initializeHeavyServices() {
   } catch (err) {
     console.error('❌ Failed to set Telegram Webhook:', err)
   }
+
+  await performStartupCleanup()
+  startPeriodicCleanup()
 
   try {
     setupRealtime()

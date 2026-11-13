@@ -9,6 +9,51 @@ const JWT_SECRET = process.env.JWT_SECRET
 const roomStatusRank = { WAITING: 0, COUNTDOWN: 1, PLAYING: 2, CLAIMING: 3, ENDED: 4 }
 const NO_WINNER_GRACE_MS = 5000
 
+function clearRoomTimer(room, key) {
+  const timer = room?.timers?.[key]
+  if (!timer) return
+  clearTimeout(timer)
+  clearInterval(timer)
+  delete room.timers[key]
+}
+
+function clearRoomTimers(room) {
+  for (const key of Object.keys(room?.timers || {})) {
+    clearRoomTimer(room, key)
+  }
+  if (room) {
+    room.resetTimeoutId = null
+    room.intervalId = null
+    room.countdownIntervalId = null
+  }
+}
+
+function cleanupEmptyRoom(roomId, room) {
+  if (Object.keys(room.players || {}).length > 0) return
+  clearRoomTimers(room)
+  if (rooms[roomId] === room) delete rooms[roomId]
+  console.log(`[Disconnect] Room ${roomId} completely emptied. Cleaned up.`)
+}
+
+function scheduleRoomTimeout(room, key, callback, delay) {
+  room.timers ||= {}
+  clearRoomTimer(room, key)
+  const timer = setTimeout(() => {
+    if (room.timers[key] === timer) delete room.timers[key]
+    callback()
+  }, delay)
+  room.timers[key] = timer
+  return timer
+}
+
+function scheduleRoomInterval(room, key, callback, delay) {
+  room.timers ||= {}
+  clearRoomTimer(room, key)
+  const timer = setInterval(callback, delay)
+  room.timers[key] = timer
+  return timer
+}
+
 function getBallData(number) {
   if (!Number.isFinite(Number(number))) return null
 
@@ -57,9 +102,10 @@ async function broadcastPlayerCount(io, roomId, room) {
   io.to(roomId).emit('room_update', { players: count, stake: room?.stake })
 }
 
-function scheduleRoomReset(io, roomId, room) {
+function scheduleRoomReset(io, roomId, room, delay = 5000) {
   clearNoWinnerTimer(room)
-  room.resetTimeoutId = setTimeout(async () => {
+  room.resetTimeoutId = scheduleRoomTimeout(room, 'reset', async () => {
+    room.resetTimeoutId = null
     if (rooms[roomId] !== room || room.status !== 'ENDED') return
 
     try {
@@ -72,7 +118,7 @@ function scheduleRoomReset(io, roomId, room) {
         })
       })
 
-      if (room.intervalId) clearInterval(room.intervalId)
+      if (room.intervalId) clearRoomTimer(room, 'game')
       room.intervalId = null
       room.status = 'WAITING'
       room.players = {}
@@ -89,6 +135,7 @@ function scheduleRoomReset(io, roomId, room) {
       })
     } catch (err) {
       console.error(`[Game] Failed to prepare next room after ${roomId}:`, err)
+      scheduleRoomReset(io, roomId, room, 30 * 1000)
       return
     }
 
@@ -99,13 +146,11 @@ function scheduleRoomReset(io, roomId, room) {
     } finally {
       if (room.status === 'WAITING' && rooms[roomId] === room) delete rooms[roomId]
     }
-  }, 5000)
+  }, delay)
 }
 
 function clearNoWinnerTimer(room) {
-  if (!room?.timers?.noWinner) return
-  clearTimeout(room.timers.noWinner)
-  room.timers.noWinner = null
+  clearRoomTimer(room, 'noWinner')
 }
 
 async function refundRoomParticipants(trx, roomId, stake) {
@@ -201,7 +246,7 @@ async function handleNoWinner(io, roomId, room) {
   } catch (err) {
     room.noWinnerSettling = false
     console.error(`[Game] Failed to refund no-winner room ${roomId}:`, err)
-    room.timers.noWinner = setTimeout(() => {
+    room.timers.noWinner = scheduleRoomTimeout(room, 'noWinner', () => {
       handleNoWinner(io, roomId, room).catch((retryErr) => {
         console.error(`[Game] No-winner refund retry failed for room ${roomId}:`, retryErr)
       })
@@ -210,20 +255,34 @@ async function handleNoWinner(io, roomId, room) {
 }
 
 async function recoverInterruptedRoom(io, roomId, room) {
-  const refunds = await db.transaction(async (trx) => {
-    const persistedRoom = await trx('game_rooms')
-      .where({ id: roomId })
-      .forUpdate()
-      .first()
-    if (!persistedRoom || !['PLAYING', 'CLAIMING'].includes(persistedRoom.status)) return null
+  let refunds
+  try {
+    refunds = await db.transaction(async (trx) => {
+      const persistedRoom = await trx('game_rooms')
+        .where({ id: roomId })
+        .forUpdate()
+        .first()
+      if (!persistedRoom || !['PLAYING', 'CLAIMING'].includes(persistedRoom.status)) return null
 
-    const roomRefunds = await refundRoomParticipants(trx, roomId, room.stake)
-    await trx('game_rooms').where({ id: roomId }).update({
-      status: 'ENDED',
-      winning_pattern: 'interrupted',
+      const roomRefunds = await refundRoomParticipants(trx, roomId, room.stake)
+      await trx('game_rooms').where({ id: roomId }).update({
+        status: 'ENDED',
+        winning_pattern: 'interrupted',
+      })
+      return roomRefunds
     })
-    return roomRefunds
-  })
+  } catch (err) {
+    console.error(`[Game] Failed to recover interrupted room ${roomId}:`, err)
+    room.status = 'WAITING'
+    room.countdownTimeLeft = null
+    clearRoomTimers(room)
+    try {
+      await db('game_rooms').where({ id: roomId }).update({ status: 'WAITING' })
+    } catch (resetErr) {
+      console.error(`[Game] Failed to reset interrupted room ${roomId}:`, resetErr)
+    }
+    return
+  }
 
   if (!refunds) return
 
@@ -242,7 +301,7 @@ function scheduleNoWinner(io, roomId, room) {
   room.noWinnerExpired = false
   room.noWinnerSettling = false
   room.pendingClaims ||= 0
-  room.timers.noWinner = setTimeout(() => {
+  room.timers.noWinner = scheduleRoomTimeout(room, 'noWinner', () => {
     room.noWinnerExpired = true
     handleNoWinner(io, roomId, room).catch((err) => {
       console.error(`[Game] No-winner settlement failed for room ${roomId}:`, err)
@@ -254,11 +313,11 @@ async function startCountdown(io, roomId) {
   const room = rooms[roomId]
   if (!room || room.status !== 'WAITING') return
   if (room.intervalId) {
-    clearInterval(room.intervalId)
+    clearRoomTimer(room, 'game')
     room.intervalId = null
   }
   if (room.countdownIntervalId) {
-    clearInterval(room.countdownIntervalId)
+    clearRoomTimer(room, 'countdown')
     room.countdownIntervalId = null
   }
   room.status = 'COUNTDOWN'
@@ -287,13 +346,13 @@ async function startCountdown(io, roomId) {
   room.countdownTimeLeft = timeLeft
   io.to(roomId).emit('countdown_tick', { timeLeft })
 
-  const countdownInterval = setInterval(async () => {
+  const countdownInterval = scheduleRoomInterval(room, 'countdown', async () => {
     timeLeft -= 1
     room.countdownTimeLeft = timeLeft
     io.to(roomId).emit('countdown_tick', { timeLeft })
 
     if (timeLeft <= 0) {
-      clearInterval(countdownInterval)
+      clearRoomTimer(room, 'countdown')
       room.countdownIntervalId = null
       try {
         const settlement = await db.transaction(async (trx) => {
@@ -451,11 +510,11 @@ async function startCountdown(io, roomId) {
         io.to(roomId).emit('game_started')
         console.log(`[Game] All valid players paid. Starting game for room ${roomId}`)
 
-        if (room.intervalId) clearInterval(room.intervalId)
+        if (room.intervalId) clearRoomTimer(room, 'game')
 
-        room.intervalId = setInterval(async () => {
+        room.intervalId = scheduleRoomInterval(room, 'game', async () => {
           if (room.status !== 'PLAYING') {
-            clearInterval(room.intervalId)
+            clearRoomTimer(room, 'game')
             room.intervalId = null
             return
           }
@@ -487,9 +546,9 @@ async function startCountdown(io, roomId) {
           })
 
           if (room.calledNumbers.size === 75) {
-            clearInterval(room.intervalId)
+            clearRoomTimer(room, 'game')
             room.intervalId = null
-            setTimeout(async () => {
+            scheduleRoomTimeout(room, 'gameEnd', async () => {
               if (room.status !== 'PLAYING') return
 
               try {
@@ -719,38 +778,40 @@ function initGameHandler(io) {
       }
     })
     socket.on('leave_room', async ({ roomId }) => {
-  try {
-    const room = rooms[roomId]
-    
-    // Only refund if the game hasn't started
-    if (room && (room.status === 'WAITING' || room.status === 'COUNTDOWN')) {
-      const user = await db('users').where({ id: socket.data.userId }).first()
+      try {
+        const room = rooms[roomId]
 
-      if (user) {
-        const participant = await db('room_participants').where({ room_id: roomId, user_id: user.id }).first()
-        
-        if (participant) {
-          await db.transaction(async (trx) => {
-            await trx('room_participants').where({ room_id: roomId, user_id: user.id }).del()
-            await trx('room_card_selections').where({ room_id: roomId, user_id: user.id }).del()
-          })
-          console.log(`[Game] Removed unpaid participant ${user.id} from room ${roomId}.`)
+        if (room && (room.status === 'WAITING' || room.status === 'COUNTDOWN')) {
+          const user = await db('users').where({ id: socket.data.userId }).first()
+          if (user) {
+            const participant = await db('room_participants')
+              .where({ room_id: roomId, user_id: user.id })
+              .first()
+            if (participant) {
+              await db.transaction(async (trx) => {
+                await trx('room_participants').where({ room_id: roomId, user_id: user.id }).del()
+                await trx('room_card_selections').where({ room_id: roomId, user_id: user.id }).del()
+              })
+              console.log(`[Game] Removed unpaid participant ${user.id} from room ${roomId}.`)
+            }
+          }
         }
+
+        if (room?.players?.[socket.id]) {
+          delete room.players[socket.id]
+          if (room.readyPlayers) room.readyPlayers.delete(socket.id)
+          try {
+            await broadcastPlayerCount(io, roomId, room)
+          } catch (err) {
+            console.error(`[Game] Failed to broadcast player count for room ${roomId}:`, err)
+          }
+          cleanupEmptyRoom(roomId, room)
+        }
+        socket.leave(roomId)
+      } catch (err) {
+        console.error('[Game] leave_room error:', err)
       }
-    }
-    
-    // Clean up memory
-    if (room && room.players && room.players[socket.id]) {
-      delete room.players[socket.id]
-      if (room.readyPlayers) room.readyPlayers.delete(socket.id)
-      
-      await broadcastPlayerCount(io, roomId, room)
-    }
-    socket.leave(roomId)
-  } catch (err) {
-    console.error('[Game] leave_room error:', err)
-  }
-})
+    })
     socket.on('claim_bingo', async ({ roomId, cardId, markedNumbers } = {}) => {
   if (!Array.isArray(markedNumbers) || markedNumbers.length === 0) {
     return socket.emit('bingo_invalid', { message: 'You must mark numbers before claiming Bingo.' })
@@ -817,14 +878,14 @@ function initGameHandler(io) {
     
     // Stop calling numbers
     if (room.intervalId) {
-      clearInterval(room.intervalId);
+      clearRoomTimer(room, 'game')
       room.intervalId = null;
     }
 
     console.log(`[Claim] Valid Bingo by user ${userId}. Starting 3-second window.`);
     
     // 6. Start the 3-second claim window (allows others to tie)
-    setTimeout(async () => {
+    scheduleRoomTimeout(room, 'claimWindow', async () => {
       try {
         console.log(`[Claim] Window closed. Processing payouts for room ${roomId}...`);
         
@@ -951,7 +1012,11 @@ function initGameHandler(io) {
       } catch (err) {
         console.error('[Claim] Payout Error:', err);
         room.status = 'ENDED';
-        await db('game_rooms').where({ id: roomId }).update({ status: 'ENDED' }).catch(() => {});
+        try {
+          await db('game_rooms').where({ id: roomId }).update({ status: 'ENDED' })
+        } catch (resetErr) {
+          console.error(`[Claim] Failed to mark room ${roomId} as ended after payout failure:`, resetErr)
+        }
         io.to(roomId).emit('game_over', { winnerIds: room.claimedBy, payout: 0, winnerName: 'Error' });
         io.to(roomId).emit('game_ended_for_spectators');
         scheduleRoomReset(io, roomId, room)
@@ -996,41 +1061,38 @@ function initGameHandler(io) {
     })
 
     socket.on('disconnect', async () => {
-  try {
-    // Loop through all rooms to find which one this socket was in
-    for (const roomId in rooms) {
-      const room = rooms[roomId]
-      
-      // If this socket is in the room's player list
-      if (room.players && room.players[socket.id]) {
-        const userId = socket.data.userId
-        
-        // Only refund if the game hasn't started
-        if (room.status === 'WAITING' || room.status === 'COUNTDOWN') {
-          if (userId) {
-            const participant = await db('room_participants').where({ room_id: roomId, user_id: userId }).first()
-            
-            if (participant) {
+      try {
+        for (const roomId of Object.keys(rooms)) {
+          const room = rooms[roomId]
+          const player = room.players?.[socket.id]
+          if (!player) continue
+
+          const userId = player.userId || socket.data.userId
+          if (room.status === 'WAITING' && userId) {
+            try {
               await db.transaction(async (trx) => {
                 await trx('room_participants').where({ room_id: roomId, user_id: userId }).del()
                 await trx('room_card_selections').where({ room_id: roomId, user_id: userId }).del()
               })
-              console.log(`[Game] Removed unpaid participant ${userId} from room ${roomId} after disconnect.`)
+              console.log(`[Disconnect] Freed card for user ${userId} in room ${roomId}`)
+            } catch (err) {
+              console.error(`[Disconnect] Failed to free card for user ${userId} in room ${roomId}:`, err)
             }
           }
+
+          delete room.players[socket.id]
+          if (room.readyPlayers) room.readyPlayers.delete(socket.id)
+          try {
+            await broadcastPlayerCount(io, roomId, room)
+          } catch (err) {
+            console.error(`[Disconnect] Failed to broadcast player count for room ${roomId}:`, err)
+          }
+          cleanupEmptyRoom(roomId, room)
         }
-        
-        // Clean up memory
-        delete room.players[socket.id]
-        if (room.readyPlayers) room.readyPlayers.delete(userId)
-        
-        await broadcastPlayerCount(io, roomId, room)
+      } catch (err) {
+        console.error('[Game] disconnect error:', err)
       }
-    }
-  } catch (err) {
-    console.error('[Game] disconnect error:', err)
-  }
-})
+    })
   })
 }
 
