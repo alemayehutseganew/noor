@@ -1,67 +1,90 @@
-const letters = { B: 'ቢ', I: 'አይ', N: 'ኤን', G: 'ጂ', O: 'ኦ' };
+let isVoiceEnabled = false;
+let isAudioUnlocked = false;
+let isMuted = true;
+const audioCache = {};
 
-function getAmharicNumber(num) {
-  const ones = ['', 'አንድ', 'ሁለት', 'ሶስት', 'አራት', 'አምስት', 'ስድስት', 'ሰባት', 'ስምንት', 'ዘጠኝ'];
-  const tens = ['', 'አስር', 'ሃያ', 'ሰላሳ', 'አርባ', 'ሃምሳ', 'ስልሳ', 'ሰባ', 'ሰማንያ', 'ዘጠና'];
-  if (num < 10) return ones[num];
-  if (num === 10) return 'አስር';
-  if (num < 20) return `አስራ ${ones[num - 10]}`;
-  if (num % 10 === 0) return tens[Math.floor(num / 10)];
-  return `${tens[Math.floor(num / 10)]} ${ones[num % 10]}`;
-}
+const retryWithM4a = (audio, fileName) => {
+  audio.src = `/audio/${fileName.replace(/\.mp3$/, '.m4a')}`;
+  audio.load();
+  return audio.play();
+};
 
-let isMuted = false;
-let voicesLoaded = false;
-let amharicVoice = null;
+export const unlockAudio = () => {
+  if (isAudioUnlocked) return;
 
-const loadVoices = () => {
-  if (typeof window === 'undefined' || !window.speechSynthesis) return;
-  const voices = window.speechSynthesis.getVoices();
-  if (voices.length > 0) {
-    voicesLoaded = true;
-    amharicVoice = voices.find((voice) => /am/i.test(voice.lang)) || voices[0];
+  const silentAudio = new Audio('/audio/B1.mp3');
+  silentAudio.volume = 0;
+  silentAudio.play().then(() => {
+    silentAudio.pause();
+    isAudioUnlocked = true;
+    console.log('[Audio] HTML5 Audio unlocked.');
+  }).catch((error) => {
+    if (!silentAudio.error) {
+      console.log('[Audio] Unlock failed:', error);
+      return;
+    }
+
+    retryWithM4a(silentAudio, 'B1.mp3').then(() => {
+      silentAudio.pause();
+      isAudioUnlocked = true;
+      console.log('[Audio] HTML5 Audio unlocked.');
+    }).catch((fallbackError) => {
+      console.log('[Audio] Unlock failed:', fallbackError);
+    });
+  });
+};
+
+export const toggleVoice = (enabled) => {
+  isVoiceEnabled = enabled;
+  isMuted = !enabled;
+  if (!enabled) {
+    Object.values(audioCache).forEach((audio) => {
+      audio.pause();
+      audio.currentTime = 0;
+    });
   }
 };
 
-if (typeof window !== 'undefined' && window.speechSynthesis) {
-  loadVoices();
-  if (window.speechSynthesis.onvoiceschanged !== undefined) {
-    window.speechSynthesis.onvoiceschanged = loadVoices;
+export const playNumberAudio = (letter, number) => {
+  if (
+    !isVoiceEnabled
+    || !/^[BINGO]$/.test(letter)
+    || !Number.isInteger(Number(number))
+    || Number(number) < 1
+    || Number(number) > 75
+  ) return;
+
+  const fileName = `${letter}${number}.mp3`;
+  if (!audioCache[fileName]) {
+    audioCache[fileName] = new Audio(`/audio/${fileName}`);
   }
-}
+
+  const audio = audioCache[fileName];
+  audio.currentTime = 0;
+  audio.play().catch((error) => {
+    if (!audio.error) {
+      console.warn(`[Audio] Failed to play ${fileName}. Ensure the file exists in public/audio/.`, error);
+      return;
+    }
+
+    retryWithM4a(audio, fileName).catch((fallbackError) => {
+      console.warn(`[Audio] Failed to play ${fileName}. Ensure the file exists in public/audio/.`, fallbackError);
+    });
+  });
+};
 
 export const toggleMute = () => {
-  isMuted = !isMuted;
-  if (isMuted && typeof window !== 'undefined' && window.speechSynthesis) {
-    window.speechSynthesis.cancel();
-  }
-  return isMuted;
+  const nextMuted = !isMuted;
+  toggleVoice(!nextMuted);
+  return nextMuted;
 };
 
 export const getMuteState = () => isMuted;
 
 export const playBallCall = (ballString) => {
-  if (isMuted || typeof window === 'undefined' || !window.speechSynthesis) return;
-
   const [letter, numberString] = ballString.split('-');
   const number = Number.parseInt(numberString, 10);
-  if (!letters[letter] || !Number.isInteger(number) || number < 1 || number > 75) return;
+  if (!/^[BINGO]$/.test(letter) || !Number.isInteger(number) || number < 1 || number > 75) return;
 
-  const textToSpeak = `${letters[letter]} ${getAmharicNumber(number)}`;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(textToSpeak);
-  utterance.rate = 0.9;
-
-  if (!voicesLoaded) loadVoices();
-  if (amharicVoice) utterance.voice = amharicVoice;
-
-  window.speechSynthesis.speak(utterance);
-};
-
-export const unlockAudio = () => {
-  if (typeof window === 'undefined' || !window.speechSynthesis) return;
-
-  const utterance = new SpeechSynthesisUtterance(' ');
-  utterance.volume = 0;
-  window.speechSynthesis.speak(utterance);
+  playNumberAudio(letter, number);
 };

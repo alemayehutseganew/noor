@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import CardSelection from './CardSelection';
 import SocketService from '../services/socket';
 import { useWallet } from '../WalletContext';
-import { getMuteState, playBallCall, toggleMute } from '../utils/bingoSounds';
+import { toggleVoice, playNumberAudio, unlockAudio } from '../utils/bingoSounds';
 
 const formatTime = (seconds) => {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -60,7 +60,21 @@ const GameScreen = () => {
   const [spectatorBall, setSpectatorBall] = useState(null);
   const [bingoMessage, setBingoMessage] = useState(null);
   const [gameResult, setGameResult] = useState(null);
-  const [isMuted, setIsMuted] = useState(getMuteState());
+  const [isMuted, setIsMuted] = useState(true);
+
+  useEffect(() => {
+    const handleFirstTap = () => {
+      unlockAudio();
+      document.removeEventListener('touchstart', handleFirstTap);
+      document.removeEventListener('click', handleFirstTap);
+    };
+    document.addEventListener('touchstart', handleFirstTap, { once: true });
+    document.addEventListener('click', handleFirstTap, { once: true });
+    return () => {
+      document.removeEventListener('touchstart', handleFirstTap);
+      document.removeEventListener('click', handleFirstTap);
+    };
+  }, []);
 
   useEffect(() => {
     if (!userId) return;
@@ -111,10 +125,10 @@ const GameScreen = () => {
     });
     socket.on('new_number_called', (data) => {
       const ball = data.ball || `${data.letter}-${data.number}`;
-      playBallCall(ball);
       const [ballLetter, ballNumber] = ball.split('-');
       const number = Number(data.number ?? ballNumber);
       const letter = data.letter || ballLetter;
+      if (letter && Number.isFinite(number)) playNumberAudio(letter, number);
       if (!Number.isFinite(number) || !letter) return;
 
       setCurrentBall({ number, letter });
@@ -270,7 +284,11 @@ const GameScreen = () => {
               <button
                 type="button"
                 aria-label={isMuted ? t('unmuteSound') : t('muteSound')}
-                onClick={() => setIsMuted(toggleMute())}
+                onClick={() => {
+                  const nextMuted = !isMuted;
+                  setIsMuted(nextMuted);
+                  toggleVoice(!nextMuted);
+                }}
                 className="h-11 min-w-11 rounded-full bg-slate-700 p-2 text-white shadow-[0_4px_0_rgb(51,65,85)] transition-all hover:bg-slate-600 active:translate-y-1 active:shadow-none"
               >
                 {isMuted ? '\u{1F507}' : '\u{1F50A}'}
@@ -386,7 +404,11 @@ const GameScreen = () => {
           <button
             type="button"
             aria-label={isMuted ? t('unmuteSound') : t('muteSound')}
-            onClick={() => setIsMuted(toggleMute())}
+            onClick={() => {
+              const nextMuted = !isMuted;
+              setIsMuted(nextMuted);
+              toggleVoice(!nextMuted);
+            }}
             className="h-11 min-w-11 rounded-full bg-slate-700 p-2 text-white shadow-[0_4px_0_rgb(51,65,85)] transition-all hover:bg-slate-600 active:translate-y-1 active:shadow-none"
           >
             {isMuted ? '\u{1F507}' : '\u{1F50A}'}
