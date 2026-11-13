@@ -788,11 +788,15 @@ function initGameHandler(io) {
               .where({ room_id: roomId, user_id: user.id })
               .first()
             if (participant) {
-              await db.transaction(async (trx) => {
-                await trx('room_participants').where({ room_id: roomId, user_id: user.id }).del()
-                await trx('room_card_selections').where({ room_id: roomId, user_id: user.id }).del()
-              })
-              console.log(`[Game] Removed unpaid participant ${user.id} from room ${roomId}.`)
+              try {
+                await db.transaction(async (trx) => {
+                  await trx('room_participants').where({ room_id: roomId, user_id: user.id }).del()
+                  await trx('room_card_selections').where({ room_id: roomId, user_id: user.id }).del()
+                })
+                console.log(`[Game] Removed unpaid participant ${user.id} from room ${roomId}.`)
+              } catch (err) {
+                console.error(`[Game] Failed to remove participant ${user.id} from room ${roomId}:`, err)
+              }
             }
           }
         }
