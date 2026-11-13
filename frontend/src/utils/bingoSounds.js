@@ -9,6 +9,32 @@ const retryWithM4a = (audio, fileName) => {
   return audio.play();
 };
 
+export const preloadAudio = () => {
+  if (typeof Audio === 'undefined') return;
+
+  const ranges = {
+    B: [1, 15],
+    I: [16, 30],
+    N: [31, 45],
+    G: [46, 60],
+    O: [61, 75],
+  };
+
+  Object.entries(ranges).forEach(([letter, [start, end]]) => {
+    for (let number = start; number <= end; number += 1) {
+      const fileName = `${letter}${number}.m4a`;
+      if (!audioCache[fileName]) {
+        const audio = new Audio(`/audio/${fileName}`);
+        audio.preload = 'auto';
+        audioCache[fileName] = audio;
+      }
+    }
+  });
+  console.log('[Audio] All 75 audio files preloaded into cache.');
+};
+
+preloadAudio();
+
 export const unlockAudio = () => {
   if (isAudioUnlocked) return;
 
@@ -54,7 +80,14 @@ export const playNumberAudio = (letter, number) => {
     || Number(number) > 75
   ) return;
 
-  const fileName = `${letter}${number}.mp3`;
+  const fileName = `${letter}${number}.m4a`;
+  Object.values(audioCache).forEach((playingAudio) => {
+    if (!playingAudio.paused) {
+      playingAudio.pause();
+      playingAudio.currentTime = 0;
+    }
+  });
+
   if (!audioCache[fileName]) {
     audioCache[fileName] = new Audio(`/audio/${fileName}`);
   }
@@ -62,14 +95,7 @@ export const playNumberAudio = (letter, number) => {
   const audio = audioCache[fileName];
   audio.currentTime = 0;
   audio.play().catch((error) => {
-    if (!audio.error) {
-      console.warn(`[Audio] Failed to play ${fileName}. Ensure the file exists in public/audio/.`, error);
-      return;
-    }
-
-    retryWithM4a(audio, fileName).catch((fallbackError) => {
-      console.warn(`[Audio] Failed to play ${fileName}. Ensure the file exists in public/audio/.`, fallbackError);
-    });
+    console.warn(`[Audio] Failed to play ${fileName}. Ensure the file exists in public/audio/.`, error);
   });
 };
 

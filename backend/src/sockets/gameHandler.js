@@ -566,7 +566,7 @@ async function startCountdown(io, roomId) {
               }
             }, 3000)
           }
-        }, 3000)
+        }, 4000)
       } catch (err) {
         console.error('[Game] Error during countdown end:', err)
         room.status = 'WAITING'
