@@ -183,6 +183,13 @@ export default function CardSelection({
     if (cardNumber === currentSelectedCard) {
       if (!roomId) return;
 
+      const previousCard = currentSelectedCard;
+      const previousMatrix = currentSelectedMatrix;
+      const previousTakenCards = takenCards;
+      setSelectedCard(null);
+      setSelectedMatrix(null);
+      setTakenCards((prev) => prev.filter((cardId) => Number(cardId) !== Number(previousCard)));
+      onCardUpdated?.(null);
       setLoading(true);
 
       try {
@@ -195,13 +202,13 @@ export default function CardSelection({
           throw new Error(data.error || 'Failed to unselect card');
         }
 
-        setSelectedCard(null);
-        setSelectedMatrix(null);
         cardSelectionVersionRef.current += 1;
-        setTakenCards((prev) => prev.filter((cardId) => cardId !== currentSelectedCard));
-        onCardUpdated?.(null);
         navigate(`/select-card?stake=${encodeURIComponent(stake)}`, { replace: true });
       } catch (err) {
+        setSelectedCard(previousCard);
+        setSelectedMatrix(previousMatrix);
+        setTakenCards(previousTakenCards);
+        onCardUpdated?.({ id: previousCard, matrix: previousMatrix });
         showToast(err.message || 'Failed to unselect card');
       } finally {
         setLoading(false);
