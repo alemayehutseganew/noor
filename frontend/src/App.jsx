@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import Lobby from './pages/Lobby'
 import CardSelection from './pages/CardSelection'
 import GameScreen from './pages/GameScreen'
 import Wallet from './pages/Wallet'
@@ -28,6 +27,23 @@ export default function App() {
 
     const existingToken = localStorage.getItem('token')
     if (existingToken) SocketService.connect(existingToken)
+
+    // Auto-resume: if the user has an active game saved in storage, go straight
+    // back to the game screen instead of the card-selection lobby.
+    const activeRoomData = localStorage.getItem('activeGameRoom')
+    if (existingToken && activeRoomData) {
+      try {
+        const { roomId, stake } = JSON.parse(activeRoomData)
+        if (roomId && stake && window.location.pathname !== '/game') {
+          window.location.replace(
+            `/game?roomId=${encodeURIComponent(roomId)}&stake=${encodeURIComponent(stake)}`
+          )
+          return
+        }
+      } catch (err) {
+        console.error('[App] Failed to parse active game data', err)
+      }
+    }
 
     const initData = tg?.initData || ''
     if (!initData) return
@@ -58,7 +74,7 @@ export default function App() {
       <WalletProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Lobby />} />
+            <Route path="/" element={<Navigate to="/select-card?stake=10" replace />} />
             <Route path="/card-selection" element={<CardSelection />} />
             <Route path="/select-card" element={<CardSelection />} />
             <Route path="/select-cards" element={<CardSelection />} />

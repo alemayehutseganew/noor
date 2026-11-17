@@ -93,6 +93,7 @@ const GameScreen = () => {
 
     const handleJoin = () => {
       socket.emit('join_room', { roomId, userId, stake, spectator: isSpectator });
+      localStorage.setItem('activeGameRoom', JSON.stringify({ roomId, stake }));
     };
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return;
@@ -130,6 +131,7 @@ const GameScreen = () => {
       window.location.href = '/wallet';
     });
     socket.on('game_aborted', (data) => {
+      localStorage.removeItem('activeGameRoom');
       alert(`⚠️ ${data.message}`);
       window.location.href = '/';
     });
@@ -185,6 +187,7 @@ const GameScreen = () => {
       }
     });
     socket.on('game_over', (data) => {
+      localStorage.removeItem('activeGameRoom');
       if (data?.reason === 'no_winner' || (Array.isArray(data?.winners) && data.winners.length === 0)) {
         setGameResult({
           type: 'loss',
@@ -242,11 +245,26 @@ const GameScreen = () => {
       navigate(`/select-card?stake=${data.stake || stake}`);
     });
     socket.on('room_reset', (data) => {
+      localStorage.removeItem('activeGameRoom');
       clearTimeout(gameOverTimeout);
       setGameResult(null);
       setSpectatorNumbers([]);
       setSpectatorBall(null);
       navigate(`/select-card?stake=${encodeURIComponent(data.stake || stake)}`);
+    });
+    socket.on('error', (err) => {
+      const msg = String(err?.message || err || '')
+      if (
+        msg.includes('not found') ||
+        msg.includes('ended') ||
+        msg.includes('already started') ||
+        msg.includes('ROOM_NOT_FOUND') ||
+        msg.includes('GAME_ALREADY_STARTED')
+      ) {
+        console.log('[Game] Active game no longer exists. Redirecting to card selection.')
+        localStorage.removeItem('activeGameRoom')
+        navigate(`/select-card?stake=${stake}`, { replace: true })
+      }
     });
     socket.on('bingo_result', (data) => {
       setBingoMessage(data);
@@ -262,6 +280,7 @@ const GameScreen = () => {
 
     return () => {
       socket.off('connect', handleJoin);
+      socket.off('error');
       socket.off('room_update');
       socket.off('players_updated');
       socket.off('game_in_progress');

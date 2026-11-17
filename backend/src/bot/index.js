@@ -151,12 +151,17 @@ bot.use((ctx, next) => {
   return next()
 })
 
-const DEFAULT_FRONTEND_URL = 'https://noor-one-beta.vercel.app/'
+const DEFAULT_FRONTEND_URL = 'https://noor-one-beta.vercel.app'
 
 function getFrontendUrl(referralRef) {
   const url = new URL(process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL)
   if (referralRef) url.searchParams.set('ref', referralRef)
   return url.toString()
+}
+
+// Base URL without a trailing slash, used to build web_app deep links.
+function getFrontendBase() {
+  return (process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL).replace(/\/$/, '')
 }
 
 function getReferralRefFromStartPayload(payload) {
@@ -210,7 +215,9 @@ function getMainMenu(lang = 'en') {
   return {
     reply_markup: {
       inline_keyboard: [
-        [{ text: t.playGame, web_app: { url: process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL } }],
+        [{ text: '🎮 Play 10 ETB', web_app: { url: `${getFrontendBase()}/select-card?stake=10` } }],
+        [{ text: '🎮 Play 50 ETB', web_app: { url: `${getFrontendBase()}/select-card?stake=50` } }],
+        [{ text: '🎮 Play 100 ETB', web_app: { url: `${getFrontendBase()}/select-card?stake=100` } }],
         [{ text: t.checkBalance, callback_data: 'menu_balance' }, { text: t.deposit, callback_data: 'menu_deposit' }],
         [{ text: t.withdraw, callback_data: 'menu_withdraw' }, { text: t.myRoom, callback_data: 'menu_room' }],
         [{ text: t.help, callback_data: 'menu_help' }]
@@ -292,7 +299,11 @@ bot.command(['invite', 'referral'], async (ctx) => {
 bot.command('play', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   ctx.reply(botText(lang, 'launchPrompt') + SUPPORT_TEXT, {
-    reply_markup: { inline_keyboard: [[{ text: botText(lang, 'playBingo'), web_app: { url: process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL } }]] }
+    reply_markup: { inline_keyboard: [
+      [{ text: '🎮 Play 10 ETB', web_app: { url: `${getFrontendBase()}/select-card?stake=10` } }],
+      [{ text: '🎮 Play 50 ETB', web_app: { url: `${getFrontendBase()}/select-card?stake=50` } }],
+      [{ text: '🎮 Play 100 ETB', web_app: { url: `${getFrontendBase()}/select-card?stake=100` } }]
+    ] }
   }).catch(() => {})
 })
 
@@ -389,7 +400,11 @@ bot.action('menu_room', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   await ctx.answerCbQuery().catch(() => {})
   ctx.reply(botText(lang, 'roomPrompt') + SUPPORT_TEXT, {
-    reply_markup: { inline_keyboard: [[{ text: botText(lang, 'openLobby'), web_app: { url: process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL } }]] }
+    reply_markup: { inline_keyboard: [
+      [{ text: '🎮 Play 10 ETB', web_app: { url: `${getFrontendBase()}/select-card?stake=10` } }],
+      [{ text: '🎮 Play 50 ETB', web_app: { url: `${getFrontendBase()}/select-card?stake=50` } }],
+      [{ text: '🎮 Play 100 ETB', web_app: { url: `${getFrontendBase()}/select-card?stake=100` } }]
+    ] }
   }).catch(() => {})
 })
 
