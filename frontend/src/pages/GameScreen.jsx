@@ -82,6 +82,15 @@ const GameScreen = () => {
   useEffect(() => {
     if (!userId) return;
 
+    let gameOverTimeout = null;
+    const scheduleCardSelectionRedirect = () => {
+      clearTimeout(gameOverTimeout);
+      gameOverTimeout = setTimeout(() => {
+        setGameResult(null);
+        navigate(`/select-card?stake=${encodeURIComponent(stake)}`);
+      }, 3000);
+    };
+
     const handleJoin = () => {
       socket.emit('join_room', { roomId, userId, stake, spectator: isSpectator });
     };
@@ -177,7 +186,12 @@ const GameScreen = () => {
     });
     socket.on('game_over', (data) => {
       if (data?.reason === 'no_winner' || (Array.isArray(data?.winners) && data.winners.length === 0)) {
-        navigate(`/select-card?stake=${stake}`);
+        setGameResult({
+          type: 'loss',
+          titleKey: 'gameOver',
+          messageKey: 'roundEnded',
+        });
+        scheduleCardSelectionRedirect();
         return;
       }
 
@@ -190,6 +204,7 @@ const GameScreen = () => {
           messageKey: 'winnerIs',
           messageValues: { name: data.winnerName },
         });
+        scheduleCardSelectionRedirect();
         return;
       }
 
@@ -208,7 +223,7 @@ const GameScreen = () => {
           messageValues: { name: data.winnerName },
         });
       }
-      setTimeout(() => { setGameResult(null); navigate('/'); }, 5000);
+      scheduleCardSelectionRedirect();
     });
     socket.on('game_ended_for_spectators', () => {
       if (!isSpectator) return
@@ -227,11 +242,11 @@ const GameScreen = () => {
       navigate(`/select-card?stake=${data.stake || stake}`);
     });
     socket.on('room_reset', (data) => {
-      if (!isSpectator) return
+      clearTimeout(gameOverTimeout);
       setGameResult(null);
       setSpectatorNumbers([]);
       setSpectatorBall(null);
-      navigate(`/select-card?stake=${data.stake || stake}`);
+      navigate(`/select-card?stake=${encodeURIComponent(data.stake || stake)}`);
     });
     socket.on('bingo_result', (data) => {
       setBingoMessage(data);
@@ -265,6 +280,7 @@ const GameScreen = () => {
       socket.off('bingo_result');
       socket.off('bingo_invalid');
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearTimeout(gameOverTimeout);
     };
   }, [socket, roomId, userId, stake, isSpectator, navigate]);
 
@@ -576,10 +592,10 @@ const GameScreen = () => {
             })}</p>
             <button
               type="button"
-              onClick={() => { setGameResult(null); navigate('/'); }}
+              onClick={() => { setGameResult(null); navigate(`/select-card?stake=${encodeURIComponent(stake)}`); }}
               className="min-h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-3.5 font-bold text-white shadow-[0_5px_0_#1e3a8a] transition-all active:translate-y-1 active:shadow-none"
             >
-              {t('backToLobby')}
+              {t('selectCard')}
             </button>
           </div>
         </div>

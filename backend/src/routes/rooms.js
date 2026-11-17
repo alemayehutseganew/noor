@@ -110,6 +110,9 @@ router.post('/join', userAuth, async (req, res) => {
           .where({ room_id: room.id, user_id: user.id })
           .first()
         if (!existing) throw new Error('NOT_ROOM_PARTICIPANT')
+        if (['PLAYING', 'CLAIMING'].includes(room.status)) {
+          return { status: 'reconnected', room }
+        }
         if (!['WAITING', 'COUNTDOWN'].includes(room.status)) {
           throw new Error('CARD_CHANGE_LOCKED')
         }
@@ -120,7 +123,7 @@ router.post('/join', userAuth, async (req, res) => {
         if (activeRoom.status === 'COUNTDOWN') {
           room = activeRoom
         } else if (existing) {
-          throw new Error('CARD_CHANGE_LOCKED')
+          return { status: 'reconnected', room: activeRoom }
         } else {
           return { status: 'spectator', room: activeRoom }
         }
@@ -223,6 +226,14 @@ router.post('/join', userAuth, async (req, res) => {
          },
        }
     })
+
+    if (result.status === 'reconnected') {
+      return res.json({
+        status: 'reconnected',
+        roomId: result.room.id,
+        stake: result.room.stake_amount,
+      })
+    }
 
     const io = req.app.get('io')
     if (io) {

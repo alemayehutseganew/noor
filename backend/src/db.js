@@ -10,6 +10,20 @@ if (environment === 'production' && !process.env.DATABASE_URL) {
 
 const knex = require('knex')
 const config = require('../knexfile.js')
-const db = knex(config[environment])
+const environmentConfig = config[environment]
+const dbConfig = environment === 'production'
+  ? {
+      ...environmentConfig,
+      pool: {
+        ...environmentConfig.pool,
+        min: 0,
+        max: 10,
+        acquireTimeoutMillis: 30000,
+        createTimeoutMillis: 30000,
+        idleTimeoutMillis: 10000,
+      },
+    }
+  : environmentConfig
+const db = knex(dbConfig)
 
 module.exports = db

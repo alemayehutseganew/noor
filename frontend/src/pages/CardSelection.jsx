@@ -241,8 +241,14 @@ export default function CardSelection({
         throw new Error(data.error || t('joinFailed'));
       }
 
-      if (data.status === 'spectator') {
-        navigate(`/game?roomId=${data.roomId}&stake=${stake}&spectator=true`);
+      if (data.status === 'reconnected' || data.status === 'spectator') {
+        if (data.status === 'reconnected') {
+          localStorage.setItem('activeGameRoom', JSON.stringify({
+            roomId: data.roomId,
+            stake: Number(data.stake || stake),
+          }));
+        }
+        navigate(`/game?roomId=${encodeURIComponent(data.roomId)}&stake=${encodeURIComponent(data.stake || stake)}&spectator=${data.status === 'spectator'}`);
         return;
       }
 
