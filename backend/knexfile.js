@@ -51,7 +51,13 @@ module.exports = {
       connectionString: requireProductionDatabaseUrl(),
       ssl: { rejectUnauthorized: false },
     },
-    pool: { min: 2, max: 10 },
+    pool: {
+      min: 0,
+      max: 10,
+      acquireTimeoutMillis: 30000, // Wait up to 30s for Neon to wake up
+      createTimeoutMillis: 30000,
+      idleTimeoutMillis: 10000
+    },
     migrations: { directory: './migrations' },
   }
 }
