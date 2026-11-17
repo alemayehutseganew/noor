@@ -164,6 +164,15 @@ function getFrontendBase() {
   return (process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL).replace(/\/$/, '')
 }
 
+function getStakeKeyboard() {
+  const frontendUrl = (process.env.FRONTEND_URL || 'https://ked-seven.vercel.app').replace(/\/$/, '')
+  return [
+    [{ text: '🎮 Play 10 ETB', web_app: { url: `${frontendUrl}/select-card?stake=10` } }],
+    [{ text: '🎮 Play 50 ETB', web_app: { url: `${frontendUrl}/select-card?stake=50` } }],
+    [{ text: '🎮 Play 100 ETB', web_app: { url: `${frontendUrl}/select-card?stake=100` } }],
+  ]
+}
+
 function getReferralRefFromStartPayload(payload) {
   if (!payload) return null
   if (payload.startsWith('u_')) return `@${payload.slice(2)}`
@@ -275,11 +284,7 @@ bot.start(async (ctx) => {
           { text: '🇬🇧 English', callback_data: 'lang_en' },
           { text: '🇪🇹 አማርኛ', callback_data: 'lang_am' }
         ],
-        [
-          { text: '🎮 Play 10 ETB', web_app: { url: `${getFrontendBase()}/select-card?stake=10` } },
-          { text: '🎮 Play 50 ETB', web_app: { url: `${getFrontendBase()}/select-card?stake=50` } },
-          { text: '🎮 Play 100 ETB', web_app: { url: `${getFrontendBase()}/select-card?stake=100` } }
-        ],
+        ...getStakeKeyboard(),
         [
           { text: '👥 Invite Friends & Earn 5%', callback_data: 'show_invite' }
         ]
@@ -301,11 +306,7 @@ bot.command(['invite', 'referral'], async (ctx) => {
 bot.command('play', async (ctx) => {
   const lang = await getUserLanguage(ctx)
   ctx.reply(botText(lang, 'launchPrompt') + SUPPORT_TEXT, {
-    reply_markup: { inline_keyboard: [
-      [{ text: '🎮 Play 10 ETB', web_app: { url: `${getFrontendBase()}/select-card?stake=10` } }],
-      [{ text: '🎮 Play 50 ETB', web_app: { url: `${getFrontendBase()}/select-card?stake=50` } }],
-      [{ text: '🎮 Play 100 ETB', web_app: { url: `${getFrontendBase()}/select-card?stake=100` } }]
-    ] }
+    reply_markup: { inline_keyboard: getStakeKeyboard() }
   }).catch(() => {})
 })
 
