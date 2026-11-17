@@ -276,7 +276,9 @@ bot.start(async (ctx) => {
           { text: '🇪🇹 አማርኛ', callback_data: 'lang_am' }
         ],
         [
-          { text: '🎮 Open Game', web_app: { url: getFrontendUrl(referralRef) } }
+          { text: '🎮 Play 10 ETB', web_app: { url: `${getFrontendBase()}/select-card?stake=10` } },
+          { text: '🎮 Play 50 ETB', web_app: { url: `${getFrontendBase()}/select-card?stake=50` } },
+          { text: '🎮 Play 100 ETB', web_app: { url: `${getFrontendBase()}/select-card?stake=100` } }
         ],
         [
           { text: '👥 Invite Friends & Earn 5%', callback_data: 'show_invite' }

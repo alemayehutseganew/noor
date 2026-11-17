@@ -172,8 +172,23 @@ router.post('/join', userAuth, async (req, res) => {
       if (!existing) {
         await trx('room_participants').insert({ room_id: room.id, user_id: user.id, is_winner: false })
         console.log(`[JOIN] Added user ${user.id} to room ${room.id}.`)
-      } else {
-        console.log(`[JOIN] User ${user.id} was already in room. Join skipped.`)
+      } else if (existing && ['WAITING', 'COUNTDOWN'].includes(activeRoom.status)) {
+        // They are already in the room (WAITING or COUNTDOWN). Update their card instead of re-joining.
+        await trx('room_card_selections')
+          .where({ room_id: room.id, user_id: user.id })
+          .update({ card_id: cardNumber, card: JSON.stringify(matrix) });
+        
+        // Return updated card data
+        const [updatedCard] = await trx('room_card_selections')
+          .where({ room_id: room.id, user_id: user.id })
+          .first();
+        console.log(`[JOIN] Updated card to ${cardNumber} for user ${user.id} (existing participant).`);
+        return res.json({ 
+          status: 'reconnected', 
+          roomId: room.id, 
+          stake: room.stake_amount,
+          card: { id: updatedCard.card_id, matrix: typeof updatedCard.card === 'string' ? JSON.parse(updatedCard.card) : updatedCard.card } 
+        });
       }
 
       // 6. ENSURE USER HAS A CARD (use user-selected card_number)

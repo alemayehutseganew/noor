@@ -238,6 +238,26 @@ export default function CardSelection({
       const data = await res.json();
 
       if (!res.ok) {
+        // If backend says we aren't a participant, force a re-join first
+        if (data.error === 'Join the room before changing your card.' || data.error === 'Join the room before selecting cards.') {
+          // Force re-join without card_number to get into the room first
+          const joinRes = await fetchApi('/rooms/join', {
+            method: 'POST',
+            body: JSON.stringify({ stake: Number(stake), userId: localStorage.getItem('dbUserId') }),
+          });
+          const joinData = await joinRes.json();
+          if (!joinRes.ok) throw new Error(joinData.error || 'Failed to re-join room');
+          
+          setActiveRoomId(joinData.roomId);
+          setSelectedMatrix(joinData.card?.matrix || null);
+          // Re-emit socket join
+          SocketService.connect().emit('join_room', {
+            roomId: joinData.roomId,
+            stake: Number(joinData.stake || stake),
+          });
+          // Retry the original card selection
+          return handleCardSelect(cardNumber);
+        }
         throw new Error(data.error || t('joinFailed'));
       }
 

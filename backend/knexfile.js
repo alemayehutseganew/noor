@@ -52,11 +52,11 @@ module.exports = {
       ssl: { rejectUnauthorized: false },
     },
     pool: {
-      min: 0,
+      min: 2, // Keep at least 2 connections warm to prevent Neon from sleeping
       max: 10,
       acquireTimeoutMillis: 30000, // Wait up to 30s for Neon to wake up
       createTimeoutMillis: 30000,
-      idleTimeoutMillis: 10000
+      idleTimeoutMillis: 30000
     },
     migrations: { directory: './migrations' },
   }
