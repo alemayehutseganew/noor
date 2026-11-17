@@ -5,6 +5,7 @@ import CardSelection from './CardSelection';
 import SocketService from '../services/socket';
 import { useWallet } from '../WalletContext';
 import { toggleVoice, playNumberAudio, unlockAudio } from '../utils/bingoSounds';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 const formatTime = (seconds) => {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -55,7 +56,9 @@ const GameScreen = () => {
   const [readyPlayers, setReadyPlayers] = useState(0);
   const [countdown, setCountdown] = useState(null);
   const [gameStarted, setGameStarted] = useState(false);
+  const [gameStatus, setGameStatus] = useState(null);
   const isSpectator = spectatorFromUrl;
+  const isGameActive = gameStarted || ['PLAYING', 'CLAIMING'].includes(gameStatus);
   const [spectatorNumbers, setSpectatorNumbers] = useState([]);
   const [spectatorBall, setSpectatorBall] = useState(null);
   const [bingoMessage, setBingoMessage] = useState(null);
@@ -82,7 +85,13 @@ const GameScreen = () => {
     const handleJoin = () => {
       socket.emit('join_room', { roomId, userId, stake, spectator: isSpectator });
     };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!socket.connected) socket.connect();
+      else handleJoin();
+    };
 
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     socket.on('room_update', (data) => {
       if (Number.isFinite(Number(data.players))) setPlayerCount(Number(data.players));
       if (Number.isFinite(Number(data.readyPlayers))) setReadyPlayers(Number(data.readyPlayers));
@@ -117,11 +126,33 @@ const GameScreen = () => {
     });
     socket.on('countdown_tick', (data) => setCountdown(data.timeLeft ?? data.seconds ?? null));
     socket.on('my_cards', (data) => {
-      if (!isSpectator && data.cards && data.cards.length > 0) setCardsData(data.cards);
+      if (data.cards && data.cards.length > 0) setCardsData(data.cards);
     });
     socket.on('game_started', () => {
       setCountdown(null);
+      setGameStatus('PLAYING');
       setGameStarted(true);
+    });
+    socket.on('sync_game_state', (data) => {
+      console.log('[SOCKET] Synced game state:', data);
+      const syncedNumbers = Array.isArray(data.calledNumbers)
+        ? data.calledNumbers.map(Number).filter(Number.isFinite)
+        : [];
+      setCalledNumbers(syncedNumbers);
+      setCalledHistory(syncedNumbers.slice(-5).map((number) => ({
+        number,
+        letter: number <= 15 ? 'B' : number <= 30 ? 'I' : number <= 45 ? 'N' : number <= 60 ? 'G' : 'O',
+      })));
+      setCurrentBall(data.currentBall || null);
+      if (data.status) {
+        setGameStatus(data.status);
+        setGameStarted(['PLAYING', 'CLAIMING'].includes(data.status));
+        if (['PLAYING', 'CLAIMING'].includes(data.status)) setCountdown(null);
+        if (isSpectator) {
+          navigate(`/game?roomId=${encodeURIComponent(roomId)}&stake=${stake}`, { replace: true });
+        }
+      }
+      if (Number.isFinite(Number(data.players))) setPlayerCount(Number(data.players));
     });
     socket.on('new_number_called', (data) => {
       const ball = data.ball || `${data.letter}-${data.number}`;
@@ -225,6 +256,7 @@ const GameScreen = () => {
       socket.off('countdown_tick');
       socket.off('my_cards');
       socket.off('game_started');
+      socket.off('sync_game_state');
       socket.off('new_number_called');
       socket.off('game_over');
       socket.off('game_ended_for_spectators');
@@ -232,6 +264,7 @@ const GameScreen = () => {
       socket.off('room_reset');
       socket.off('bingo_result');
       socket.off('bingo_invalid');
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [socket, roomId, userId, stake, isSpectator, navigate]);
 
@@ -242,7 +275,7 @@ const GameScreen = () => {
   };
 
   const handleBingoClick = () => {
-    if (!gameStarted || isSpectator) return;
+    if (!isGameActive || isSpectator) return;
     const cardId = cardsData[0]?.id || cardsData[0]?.cardId;
     if (!cardId) return;
     socket.emit('claim_bingo', { roomId, userId: localStorage.getItem('dbUserId'), cardId, markedNumbers });
@@ -367,12 +400,12 @@ const GameScreen = () => {
     );
   }
 
-  if (!gameStarted) {
+  if (!isGameActive) {
     return (
       <CardSelection
         countdown={countdown}
         playersCount={playersCount}
-        isGameStarted={gameStarted || (countdown !== null && countdown <= 0)}
+        isGameStarted={isGameActive || (countdown !== null && countdown <= 0)}
         cardData={cardsData[0] || null}
         onCardUpdated={(updatedCard) => {
           setCardsData([updatedCard]);
@@ -386,9 +419,9 @@ const GameScreen = () => {
     <div className="min-h-screen overflow-x-hidden bg-gradient-to-b from-[#0f172a] via-[#1e293b] to-[#020617] p-3 font-sans text-white flex flex-col">
       <div className="relative z-[60] mb-4 flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-600/50 bg-slate-800/60 p-2.5 shadow-2xl backdrop-blur-lg">
         <div className="flex flex-wrap gap-2 text-xs font-bold sm:text-sm">
-          <div className="flex min-h-11 items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/80 px-3 shadow-inner"><span className="text-slate-400">{t('win')}:</span><span className="text-emerald-400">{gameStarted ? '0' : '--'}</span></div>
+          <div className="flex min-h-11 items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/80 px-3 shadow-inner"><span className="text-slate-400">{t('win')}:</span><span className="text-emerald-400">{isGameActive ? '0' : '--'}</span></div>
           <div className="flex min-h-11 items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/80 px-3 shadow-inner"><span className="text-slate-400">{t('stake')}:</span><span className="text-blue-400">{stake || '--'}</span></div>
-          <div className="flex min-h-11 items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/80 px-3 shadow-inner"><span className="text-slate-400">{t('call')}:</span><span className="text-amber-300">{gameStarted ? calledNumbers.length : '--'}</span></div>
+          <div className="flex min-h-11 items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/80 px-3 shadow-inner"><span className="text-slate-400">{t('call')}:</span><span className="text-amber-300">{isGameActive ? calledNumbers.length : '--'}</span></div>
           <div className="flex min-h-11 items-center gap-1 rounded-xl border border-slate-700 bg-slate-900/80 px-3 shadow-inner"><span className="text-slate-400">{t('players')}:</span><span className="text-violet-300">{playersCount}</span></div>
         </div>
         <div className="ml-auto flex items-center gap-2 text-xs">
@@ -430,7 +463,7 @@ const GameScreen = () => {
           </div>
         </div>
       )}
-      {!gameStarted && countdown === null ? (
+      {!isGameActive && countdown === null ? (
         <div className="flex flex-1 items-center justify-center text-slate-400">
           {t('waitingPlayersLine1')}
           <br />
@@ -555,4 +588,10 @@ const GameScreen = () => {
   );
 };
 
-export default GameScreen;
+const GameScreenWithErrorBoundary = () => (
+  <ErrorBoundary>
+    <GameScreen />
+  </ErrorBoundary>
+);
+
+export default GameScreenWithErrorBoundary;

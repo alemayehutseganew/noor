@@ -2,6 +2,7 @@ let isVoiceEnabled = true;
 let isAudioUnlocked = false;
 let isMuted = false;
 const audioCache = {};
+const MAX_CACHE_SIZE = 10;
 
 export const unlockAudio = () => {
   if (isAudioUnlocked || typeof Audio === 'undefined') return;
@@ -34,49 +35,6 @@ export const toggleVoice = (enabled) => {
     }
   }
 };
-
-export const preloadAudio = async () => {
-  const ranges = {
-    B: [1, 15],
-    I: [16, 30],
-    N: [31, 45],
-    G: [46, 60],
-    O: [61, 75],
-  };
-  const files = Object.entries(ranges).flatMap(([letter, [start, end]]) => (
-    Array.from({ length: end - start + 1 }, (_, index) => `${letter}${start + index}.m4a`)
-  ));
-  const missingFiles = [];
-  const batchSize = 8;
-
-  for (let index = 0; index < files.length; index += batchSize) {
-    const batch = files.slice(index, index + batchSize);
-    await Promise.all(batch.map(async (fileName) => {
-      try {
-        const response = await fetch(`/audio/${fileName}`);
-        if (!response.ok) {
-          missingFiles.push(fileName);
-          return;
-        }
-        await response.arrayBuffer();
-      } catch {
-        missingFiles.push(fileName);
-      }
-    }));
-  }
-
-  if (missingFiles.length > 0) {
-    console.error('[Audio] ❌ MISSING OR UNREACHABLE FILES:', missingFiles.join(', '));
-  } else {
-    console.log('[Audio] ✅ All 75 audio files verified and fetched.');
-  }
-};
-
-if (typeof window !== 'undefined' && typeof Audio !== 'undefined' && typeof fetch === 'function') {
-  preloadAudio().catch((err) => {
-    console.error('[Audio] Failed to verify audio files:', err);
-  });
-}
 
 const fallbackToSpeech = (letter, number) => {
   if (
@@ -117,6 +75,11 @@ export const playNumberAudio = (letter, number) => {
 
   const fileName = `${letter}${parsedNumber}.m4a`;
   if (!audioCache[fileName]) {
+    if (Object.keys(audioCache).length >= MAX_CACHE_SIZE) {
+      const oldestKey = Object.keys(audioCache)[0];
+      audioCache[oldestKey].pause();
+      delete audioCache[oldestKey];
+    }
     audioCache[fileName] = new Audio(`/audio/${fileName}`);
   }
 

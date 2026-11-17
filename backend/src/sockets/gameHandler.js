@@ -694,6 +694,32 @@ function initGameHandler(io) {
           }
         }
 
+        if (participant && ['COUNTDOWN', 'PLAYING', 'CLAIMING'].includes(persistedRoom.status)) {
+          const room = rooms[roomId]
+          room.players[socket.id] = { socketId: socket.id, userId: user.id }
+
+          const selections = await db('room_card_selections')
+            .where({ room_id: roomId, user_id: user.id })
+          socket.emit('my_cards', {
+            cards: selections.map((selection) => ({
+              id: selection.card_id,
+              matrix: typeof selection.card === 'string' ? JSON.parse(selection.card) : selection.card,
+            })),
+          })
+
+          const playerCount = Object.keys(room.players).length
+          socket.emit('sync_game_state', {
+            calledNumbers: Array.from(room.calledNumbers),
+            currentBall: room.latestNumber,
+            status: room.status,
+            players: playerCount,
+          })
+          if (room.status === 'COUNTDOWN' && Number.isFinite(room.countdownTimeLeft)) {
+            socket.emit('countdown_tick', { timeLeft: room.countdownTimeLeft })
+          }
+          return
+        }
+
         if (persistedRoom.status === 'ENDED') {
           const playerCount = await emitCurrentRoomState(socket, roomId, rooms[roomId])
           return socket.emit('game_in_progress', {
@@ -705,7 +731,6 @@ function initGameHandler(io) {
           })
         }
 
-        // Reconnecting during an active round never restores player status.
         if (['PLAYING', 'CLAIMING'].includes(persistedRoom.status)) {
           const room = rooms[roomId]
           const playerCount = await emitCurrentRoomState(socket, roomId, room)
