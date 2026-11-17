@@ -120,8 +120,10 @@ function parseTelebirrSMS(smsText) {
 
   const { reference: transactionId, url: receiptUrl } = extractTelebirrReceipt(smsText)
 
-  const amountMatch = smsText.match(/(?:paid|transferred)\s+ETB\s+([0-9.]+)/i)
-  const amount = amountMatch ? parseFloat(amountMatch[1]) : null
+  const englishAmountMatch = smsText.match(/ETB\s*([\d,]+(?:\.\d{1,2})?)/i)
+  const amharicAmountMatch = smsText.match(/([\d,]+(?:\.\d{1,2})?)\s*ብር/)
+  const amountMatch = englishAmountMatch || amharicAmountMatch
+  const amount = amountMatch ? Number(amountMatch[1].replace(/,/g, '')) : null
 
   const payerMatch = smsText.match(/Dear\s+([A-Za-z\s]+)/i)
   const payerName = payerMatch ? payerMatch[1].trim() : null
@@ -130,7 +132,7 @@ function parseTelebirrSMS(smsText) {
   const receiverName = receiverMatch ? receiverMatch[1].trim() : null
   const receiverNumber = receiverMatch ? receiverMatch[2] : null
 
-  if (!transactionId || !amount || !receiverName) {
+  if (!transactionId || !Number.isFinite(amount) || amount <= 0) {
     return null
   }
 
@@ -146,19 +148,29 @@ function parseTelebirrSMS(smsText) {
 }
 
 function extractTelebirrReceipt(smsText) {
-  const transactionMatch = smsText.match(
+  if (!smsText) return { reference: null, url: null }
+
+  const receiptMatch = smsText.match(
+    /https:\/\/transactioninfo\.ethiotelecom\.et\/receipt\/([A-Z0-9]{6,20})(?![A-Z0-9])/i
+  )
+  if (receiptMatch) {
+    const reference = receiptMatch[1].toUpperCase()
+    return {
+      reference,
+      url: `https://transactioninfo.ethiotelecom.et/receipt/${reference}`,
+    }
+  }
+
+  const englishMatch = smsText.match(
     /(?:transaction\s+number(?:\s+is)?|reference)[\s:#]*([A-Z0-9]{6,20})(?![A-Z0-9])/i
   )
-  const receiptMatch = smsText.match(
-    /https:\/\/transactioninfo\.ethiotelecom\.et\/receipt\/([A-Z0-9]{10})(?![A-Z0-9])/i
-  )
-  const reference = (transactionMatch?.[1] || receiptMatch?.[1] || '').toUpperCase() || null
+  const amharicMatch = smsText.match(/ቁጥርዎ\s+([A-Z0-9]{6,20})\s+ነዉ/i)
+  const fallbackMatch = smsText.match(/\b([A-Z0-9]{10})\b/i)
+  const reference = (englishMatch?.[1] || amharicMatch?.[1] || fallbackMatch?.[1] || '').toUpperCase() || null
 
   return {
     reference,
-    url: receiptMatch
-      ? `https://transactioninfo.ethiotelecom.et/receipt/${receiptMatch[1].toUpperCase()}`
-      : null,
+    url: null,
   }
 }
 
