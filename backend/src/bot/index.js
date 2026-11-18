@@ -43,7 +43,7 @@ const botTranslations = {
 ✅ If there is more than one winner, the prize pool is split among them.`,
     registerPrompt: 'To complete your registration, please share your phone number:',
     sharePhone: '📱 Share Phone Number',
-    depositInstructions: '💳 To Deposit:\n\n👤 Name: {{name}}\n📱 Telebirr: {{phone}}\n\n1. Open your Telebirr app\n2. Send money to the number above\n3. Copy the SMS you receive\n\n👇 Now paste the full SMS here:',
+    depositInstructions: '💳 To Deposit\n\n👤 Name: {{name}}\n📱 Telebirr: {{phone}}\n\n1️⃣ Open your Telebirr app\n2️⃣ Send money to the number above\n3️⃣ Copy the SMS you receive\n\n👇 Now paste the full SMS here:',
     withdrawPrompt: 'Enter the amount you want to withdraw (Minimum 100 ETB):',
     roomPrompt: 'To join a room, please open the Mini App and select a stake.',
     invalidReference: 'Could not find a valid transaction number in that SMS.',
@@ -60,9 +60,8 @@ const botTranslations = {
     phoneSaved: '✅ Phone number saved: {{phone}}\n\nYou can now use the bot normally.',
     registrationComplete: '✅ Registration complete! Phone number: {{phone}}',
     contactFailed: '❌ Failed to save your contact. Please try again.',
-    inviteEarn: '🎉 Invite & Earn 5%!\n\nShare your unique link with friends. When they win a game, you get 5% of their prize!\n\n🔗 Your Link:\n{{link}}\n\n(You can withdraw your earnings once you reach 1,000 ETB!)',
+    inviteEarn: '🎉 Invite & Earn 5%!\n\nShare your unique link with friends. When they win a game, you get 5% of their prize!\n\n🔗 Your Link:\n{{link}}\n\n💰 Withdraw your earnings once you reach 1,000 ETB!',
     shareGroup: '📢 Share to Group/Channel',
-    openGame: '🎮 Open Game',
     shareText: 'Join me on GoBingo and win big! 🎰'
   },
   am: {
@@ -103,7 +102,7 @@ const botTranslations = {
 ✅ ከአንድ በላይ አሸናፊ ካለ ደራሽ ገንዘቡን ይከፋፈላሉ።`,
     registerPrompt: 'ምዝገባዎን ለማጠናቀቅ እባክዎ ስልክ ቁጥርዎን ያጋሩ፦',
     sharePhone: '📱 ስልክ ቁጥር ያጋሩ',
-    depositInstructions: '💳 ገንዘብ ለማስገባት፦\n\n👤 ስም፦ {{name}}\n📱 ቴሌብር፦ {{phone}}\n\n1. የቴሌብር መተግበሪያዎን ይክፈቱ።\n2. ከላይ ወደተጠቀሰው ቁጥር ገንዘብ ይላኩ።\n3. የደረሰዎትን ኤስኤምኤስ ኮፒ ያድርጉ።\n\n👇 አሁን ሙሉውን ኤስኤምኤስ እዚህ ይለጥፉ፦',
+    depositInstructions: '💳 ገንዘብ ለማስገባት\n\n👤 ስም፦ {{name}}\n📱 ቴሌብር፦ {{phone}}\n\n1️⃣ የቴሌብር መተግበሪያዎን ይክፈቱ\n2️⃣ ከላይ ወደተጠቀሰው ቁጥር ገንዘብ ይላኩ\n3️⃣ የደረሰዎትን ኤስኤምኤስ ኮፒ ያድርጉ\n\n👇 አሁን ሙሉውን ኤስኤምኤስ እዚህ ይለጥፉ፦',
     withdrawPrompt: 'ማውጣት የሚፈልጉትን መጠን ያስገቡ (ዝቅተኛው 100 ብር)፦',
     roomPrompt: 'ክፍል ለመቀላቀል ሚኒ አፑን ከፍተው የውለታ መጠን ይምረጡ።',
     invalidReference: 'በዚያ ኤስኤምኤስ ውስጥ ትክክለኛ የግብይት ቁጥር አልተገኘም።',
@@ -120,9 +119,8 @@ const botTranslations = {
     phoneSaved: '✅ ስልክ ቁጥሩ ተቀምጧል፦ {{phone}}\n\nአሁን ቦቱን በመደበኛው መንገድ መጠቀም ይችላሉ።',
     registrationComplete: '✅ ምዝገባው ተጠናቋል! ስልክ ቁጥር፦ {{phone}}',
     contactFailed: '❌ የእውቂያ መረጃዎን ማስቀመጥ አልተሳካም። እባክዎ እንደገና ይሞክሩ።',
-    inviteEarn: '🎉 ይጋብዙ እና 5% ያግቡ!\n\nልዩ ሊንክዎን ለጓደኞችዎ ያጋሩ። እነሱ ሲያሸንፉ የሽልማታቸውን 5% ያገኛሉ!\n\n🔗 የእርስዎ ሊንክ፦\n{{link}}\n\n(ገቢዎን 1,000 ብር ሲደርስ ማውጣት ይችላሉ!)',
+    inviteEarn: '🎉 ይጋብዙ እና 5% ያግቡ!\n\nልዩ ሊንክዎን ለጓደኞችዎ ያጋሩ። እነሱ ሲያሸንፉ የሽልማታቸውን 5% ያገኛሉ!\n\n🔗 የእርስዎ ሊንክ፦\n{{link}}\n\n💰 ገቢዎን 1,000 ብር ሲደርስ ማውጣት ይችላሉ!',
     shareGroup: '📢 ለቡድን/ቻናል አጋራ',
-    openGame: '🎮 ጨዋታውን ክፈት',
     shareText: 'በዮጋቢንጎ ይቀላለቁኝ እና ትልቅ ያሸንፉ! 🎰'
   },
 }
@@ -238,7 +236,7 @@ async function showInvite(ctx) {
       reply_markup: {
         inline_keyboard: [
           [{ text: botText(lang, 'shareGroup'), url: shareUrl }],
-          [{ text: botText(lang, 'openGame'), web_app: { url: getWebAppUrl('/select-card', { stake: 10 }) } }]
+          ...getStakeKeyboard()
         ]
       }
     })
