@@ -1,6 +1,6 @@
-let isVoiceEnabled = true;
+let isVoiceEnabled = false;
 let isAudioUnlocked = false;
-let isMuted = false;
+let isMuted = true;
 const audioCache = {};
 const MAX_CACHE_SIZE = 10;
 
@@ -37,7 +37,8 @@ export const toggleVoice = (enabled) => {
 
 const fallbackToSpeech = (letter, number) => {
   if (
-    typeof window === 'undefined'
+    !isVoiceEnabled
+    || typeof window === 'undefined'
     || !window.speechSynthesis
     || typeof SpeechSynthesisUtterance === 'undefined'
   ) return;
@@ -51,11 +52,11 @@ const fallbackToSpeech = (letter, number) => {
 };
 
 export const playNumberAudio = (letter, number) => {
+  if (!isVoiceEnabled || !isAudioUnlocked) return;
+
   const parsedNumber = Number(number);
   if (
-    !isVoiceEnabled
-    || !isAudioUnlocked
-    || !/^[BINGO]$/.test(letter)
+    !/^[BINGO]$/.test(letter)
     || !Number.isInteger(parsedNumber)
     || parsedNumber < 1
     || parsedNumber > 75
@@ -86,6 +87,7 @@ export const playNumberAudio = (letter, number) => {
   audio.currentTime = 0;
   try {
     audio.play().catch((err) => {
+      if (!isVoiceEnabled) return;
       console.warn(`[Audio] Failed to play ${fileName}. Falling back to Web Speech API.`, err);
       fallbackToSpeech(letter, parsedNumber);
     });
