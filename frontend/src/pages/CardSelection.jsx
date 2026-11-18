@@ -139,7 +139,6 @@ export default function CardSelection({
     };
 
     const handleGameStarted = () => {
-      console.log('[SOCKET] Game started! Redirecting to game screen...');
       if (isEmbedded) return;
       navigate(`/game?roomId=${encodeURIComponent(activeRoomId)}&stake=${encodeURIComponent(stake)}`, { replace: true });
     };
@@ -203,6 +202,7 @@ export default function CardSelection({
         }
 
         cardSelectionVersionRef.current += 1;
+        localStorage.removeItem('activeGameRoom');
         navigate(`/select-card?stake=${encodeURIComponent(stake)}`, { replace: true });
       } catch (err) {
         setSelectedCard(previousCard);
@@ -225,13 +225,16 @@ export default function CardSelection({
     setLoading(true);
 
     try {
-      let res = await fetchApi('/rooms/join', {
+      const selectionEndpoint = roomId
+        ? `/rooms/${encodeURIComponent(roomId)}/select-cards`
+        : '/rooms/join';
+      let joinedThroughFallback = false;
+      let res = await fetchApi(selectionEndpoint, {
         method: 'POST',
-        body: JSON.stringify({
+        body: JSON.stringify(roomId ? { cardIds: [cardNumber] } : {
           stake: Number(stake),
           card_number: cardNumber,
           userId: localStorage.getItem('dbUserId'),
-          ...(roomId ? { roomId } : {}),
         }),
       });
 
@@ -244,6 +247,7 @@ export default function CardSelection({
             body: JSON.stringify({ stake: Number(stake), card_number: cardNumber }),
           });
           data = await res.json();
+          joinedThroughFallback = true;
         }
       }
 
@@ -277,9 +281,12 @@ export default function CardSelection({
       }));
 
       const updatedCard = {
-        id: Number(data.card.id),
-        matrix: data.card.matrix,
+        id: Number((data.card || data.cards?.[0])?.id),
+        matrix: (data.card || data.cards?.[0])?.matrix,
       };
+      if (!updatedCard.id || !updatedCard.matrix) {
+        throw new Error(t('joinFailed'));
+      }
       cardSelectionVersionRef.current += 1;
       setTakenCards((prev) => prev.filter((cardId) => (
         Number(cardId) !== Number(previousCard)
@@ -289,10 +296,10 @@ export default function CardSelection({
       setSelectedCard(updatedCard.id);
       setSelectedMatrix(updatedCard.matrix);
 
-      if (roomId) {
+      if (roomId && !joinedThroughFallback) {
         onCardUpdated?.(updatedCard);
       } else {
-        navigate(`/game?roomId=${data.roomId}&stake=${stake}`);
+        navigate(`/game?roomId=${encodeURIComponent(joinedRoomId)}&stake=${encodeURIComponent(stake)}`);
       }
     } catch (err) {
       const errorText = String(err.message || '');

@@ -28,20 +28,28 @@ export default function App() {
     const existingToken = localStorage.getItem('token')
     if (existingToken) SocketService.connect(existingToken)
 
-    // Auto-resume: if the user has an active game saved in storage, go straight
-    // back to the game screen instead of the card-selection lobby.
+    // Auto-resume a saved room instead of returning to card selection.
+    let activeGameRoom = null
     const activeRoomData = localStorage.getItem('activeGameRoom')
-    if (existingToken && activeRoomData) {
+    if (activeRoomData) {
       try {
         const { roomId, stake } = JSON.parse(activeRoomData)
-        if (roomId && stake && window.location.pathname !== '/game') {
-          window.location.replace(
-            `/game?roomId=${encodeURIComponent(roomId)}&stake=${encodeURIComponent(stake)}`
-          )
-          return
+        if (roomId && window.location.pathname !== '/game') {
+          activeGameRoom = {
+            roomId,
+            stake: Number(stake) || 10,
+          }
+          if (existingToken) {
+            window.location.replace(
+              `/game?roomId=${encodeURIComponent(roomId)}&stake=${encodeURIComponent(activeGameRoom.stake)}`
+            )
+            return
+          }
         }
+        if (!roomId) localStorage.removeItem('activeGameRoom')
       } catch (err) {
         console.error('[App] Failed to parse active game data', err)
+        localStorage.removeItem('activeGameRoom')
       }
     }
 
@@ -64,6 +72,13 @@ export default function App() {
           localStorage.setItem('telegramId', String(data.user.telegram_id))
           SocketService.connect(data.token)
           window.dispatchEvent(new Event('wallet-refresh'))
+          if (activeGameRoom && window.location.pathname !== '/game') {
+            window.location.replace(
+              `/game?roomId=${encodeURIComponent(activeGameRoom.roomId)}&stake=${encodeURIComponent(activeGameRoom.stake)}`
+            )
+          } else if (!existingToken && window.location.pathname === '/game') {
+            window.location.reload()
+          }
         }
       })
       .catch(() => {})

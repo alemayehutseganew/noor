@@ -15,7 +15,7 @@ function buildConfig() {
     pool: {
       min: 2,
       max: 10,
-      acquireTimeoutMillis: 60000,
+      acquireTimeoutMillis: 30000,
       idleTimeoutMillis: 30000,
     },
   }

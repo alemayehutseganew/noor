@@ -13,8 +13,6 @@ const requiredEnvVars = [
 const missingVars = requiredEnvVars.filter(v => !process.env[v]);
 if (missingVars.length > 0) {
   console.error('❌ CRITICAL ERROR: Missing environment variables:', missingVars.join(', '));
-} else {
-  console.log('✅ All required environment variables are loaded successfully.');
 }
 
 const express = require('express')
@@ -49,20 +47,14 @@ const corsOptions = {
 app.use(cors(corsOptions))
 app.options(/.*/, cors(corsOptions)) // Express 5 preflight handling
 
-// 3. Request Logger
-app.use((req, res, next) => {
-  console.log(`[SERVER TRACE] Incoming request: ${req.method} ${req.url}`)
-  next()
-})
-
-// 4. App Hardening
+// 3. App Hardening
 app.disable('x-powered-by')
 app.set('trust proxy', 1)
 
-// 5. Health Check
+// 4. Health Check
 app.get('/health', (req, res) => res.status(200).send('OK'))
 
-// 6. Lazy Router Loader (prevents heavy startup crashes)
+// 5. Lazy Router Loader (prevents heavy startup crashes)
 function lazyRouter(modulePath) {
   let router
   return (req, res, next) => {
@@ -75,22 +67,19 @@ function lazyRouter(modulePath) {
   }
 }
 
-// 7. API Routes
+// 6. API Routes
 app.use('/api/auth', lazyRouter('./routes/auth'))
 app.use('/api/rooms', lazyRouter('./routes/rooms'))
 app.use('/api/payments', lazyRouter('./routes/payments'))
 app.use('/api/wallet', lazyRouter('./routes/wallet'))
 app.use('/api/users', lazyRouter('./routes/users'))
 app.use('/api/admin', lazyRouter('./routes/admin'))
-console.log('✅ API routes mounted')
 
-// 8. TELEGRAM WEBHOOK (Must be placed BEFORE the 404 handler)
+// 7. TELEGRAM WEBHOOK (Must be placed BEFORE the 404 handler)
 const { bot } = require('./bot/index')
 app.set('bot', bot)
 
 app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => {
-  console.log('[WEBHOOK TRACE] Received update from Telegram:', req.body?.update_id)
-  
   // Acknowledge Telegram immediately
   res.sendStatus(200)
   
@@ -103,12 +92,12 @@ app.post(`/telegraf/${bot.secretPathComponent()}`, (req, res) => {
   }
 })
 
-// 9. 404 Handler (must come after all routes)
+// 8. 404 Handler (must come after all routes)
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' })
 })
 
-// 10. Global Error Handler
+// 9. Global Error Handler
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
     console.error('Invalid JSON payload:', err.message)
@@ -121,67 +110,48 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' })
 })
 
-// 11. HTTP Server + Socket.IO Setup
+// 10. HTTP Server + Socket.IO Setup
 const server = http.createServer(app)
 let io
 
 async function performStartupCleanup() {
   const db = require('./db')
-  console.log('[Cleanup] Running startup recovery sweep...')
   try {
-    const stuckRooms = await db('game_rooms')
-      .whereIn('status', ['COUNTDOWN', 'PLAYING', 'CLAIMING'])
-      .orWhereNotIn('status', ['WAITING', 'PLAYING', 'CLAIMING', 'ENDED'])
-      .orWhereNull('status')
-      .orWhere(function () {
-        this.where('status', 'WAITING')
-          .andWhere('created_at', '<', db.raw("NOW() - INTERVAL '2 hours'"))
-      })
-
-    if (stuckRooms.length === 0) {
-      console.log('[Cleanup] No stuck rooms found. System is clean.')
-      return
-    }
-
-    const roomIds = stuckRooms.map((room) => room.id)
-    console.log(`[Cleanup] Found ${roomIds.length} stuck rooms. Purging...`)
-    await db.transaction(async (trx) => {
-      await trx('room_card_selections').whereIn('room_id', roomIds).del()
-      await trx('room_participants').whereIn('room_id', roomIds).del()
-      await trx('game_rooms').whereIn('id', roomIds).update({
-        status: 'WAITING',
-        called_numbers: JSON.stringify([]),
-        winning_pattern: null,
-      })
-    })
-    console.log('[Cleanup] Startup sweep complete. Stuck rooms purged.')
+    await deleteStaleWaitingRooms(db)
   } catch (err) {
     console.error('[Cleanup] Startup sweep failed:', err)
   }
 }
 
+async function deleteStaleWaitingRooms(db) {
+  return db.transaction(async (trx) => {
+    const staleRooms = await trx('game_rooms')
+      .select('id')
+      .whereIn('status', ['WAITING', 'COUNTDOWN'])
+      .where('created_at', '<', trx.raw("NOW() - INTERVAL '1 hour'"))
+      .forUpdate()
+    const roomIds = staleRooms.map((room) => room.id)
+    if (roomIds.length === 0) return 0
+
+    await trx('room_card_selections').whereIn('room_id', roomIds).del()
+    await trx('room_participants').whereIn('room_id', roomIds).del()
+    await trx('game_rooms').whereIn('id', roomIds).del()
+    return roomIds.length
+  })
+}
+
+let cleanupInterval
 function startPeriodicCleanup() {
   const db = require('./db')
-  setInterval(async () => {
+  if (cleanupInterval) return
+  cleanupInterval = setInterval(async () => {
     try {
-      console.log('[Cron] Running periodic zombie room cleanup...')
-      const staleRooms = await db('game_rooms')
-        .whereIn('status', ['WAITING', 'COUNTDOWN'])
-        .where('created_at', '<', db.raw("NOW() - INTERVAL '30 minutes'"))
-
-      if (staleRooms.length === 0) return
-
-      const roomIds = staleRooms.map((room) => room.id)
-      await db.transaction(async (trx) => {
-        await trx('room_card_selections').whereIn('room_id', roomIds).del()
-        await trx('room_participants').whereIn('room_id', roomIds).del()
-        await trx('game_rooms').whereIn('id', roomIds).del()
-      })
-      console.log(`[Cron] Purged ${roomIds.length} abandoned rooms.`)
+      await deleteStaleWaitingRooms(db)
     } catch (err) {
       console.error('[Cron] Periodic cleanup failed:', err)
     }
-  }, 5 * 60 * 1000)
+  }, 10 * 60 * 1000)
+  if (cleanupInterval.unref) cleanupInterval.unref()
 }
 
 function setupRealtime() {
@@ -205,25 +175,21 @@ function setupRealtime() {
       Promise.all([pubClient.connect(), subClient.connect()])
         .then(() => {
           io.adapter(createAdapter(pubClient, subClient))
-          console.log('✅ Redis adapter connected for Socket.io scaling')
         })
         .catch((err) => console.error('❌ Redis adapter error:', err))
     } catch (err) {
-      console.log('⚠️ Redis packages not installed. Using in-memory adapter.')
+      console.error('[Redis] Failed to initialize adapter:', err)
     }
-  } else {
-    console.log('⚠️ REDIS_URL not set. Using in-memory Socket.io adapter.')
   }
 }
 
-// 12. Heavy Services Initialization (Runs after server starts listening)
+// 11. Heavy Services Initialization (Runs after server starts listening)
 async function initializeHeavyServices() {
   try {
     const webhookUrl = process.env.WEBHOOK_URL
     if (webhookUrl) {
       const normalizedWebhookUrl = webhookUrl.replace(/\/+$/, '')
       await bot.telegram.setWebhook(`${normalizedWebhookUrl}/telegraf/${bot.secretPathComponent()}`)
-      console.log(`✅ Telegram Webhook set successfully to: ${normalizedWebhookUrl}`)
     } else {
       console.error('❌ WEBHOOK_URL is missing in environment variables!')
     }
@@ -241,13 +207,11 @@ async function initializeHeavyServices() {
   }
 }
 
-// 13. Start Server
+// 12. Start Server
 const PORT = process.env.PORT || 3001
 
 function start() {
   return server.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ SERVER IS LISTENING ON PORT ${PORT}`)
-    
     // Initialize heavy services in the background so they don't block the port
     setImmediate(() => {
       initializeHeavyServices().catch((err) => console.error('[STARTUP ERROR]', err))
@@ -255,19 +219,17 @@ function start() {
   })
 }
 
-// 14. Graceful Shutdown
-function shutdown(signal) {
-  console.log(`\n${signal} received. Shutting down gracefully...`)
+// 13. Graceful Shutdown
+function shutdown() {
+  clearInterval(cleanupInterval)
   const finishShutdown = () => {
     if (!require.cache[require.resolve('./db')]) {
-      console.log('👋 Shutdown complete')
       process.exit(0)
     }
 
     require('./db').destroy()
       .catch((err) => console.error('DB destroy error:', err))
       .finally(() => {
-        console.log('👋 Shutdown complete')
         process.exit(0)
       })
   }
@@ -280,8 +242,8 @@ function shutdown(signal) {
   }, 10_000).unref()
 }
 
-process.on('SIGTERM', () => shutdown('SIGTERM'))
-process.on('SIGINT', () => shutdown('SIGINT'))
+process.on('SIGTERM', shutdown)
+process.on('SIGINT', shutdown)
 process.on('uncaughtException', (err) => {
   console.error('❌ UNCAUGHT EXCEPTION:', err);
   process.exit(1);

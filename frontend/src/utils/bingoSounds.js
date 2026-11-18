@@ -14,7 +14,6 @@ export const unlockAudio = () => {
       .then(() => {
         unlockAudioObj.pause();
         isAudioUnlocked = true;
-        console.log('[Audio] Mobile audio context unlocked.');
       })
       .catch((err) => console.warn('[Audio] Unlock failed:', err));
   } catch (error) {

@@ -53,7 +53,6 @@ const GameScreen = () => {
   const [cardsData, setCardsData] = useState([]);
   const [playerCount, setPlayerCount] = useState(0);
   const playersCount = playerCount;
-  const [readyPlayers, setReadyPlayers] = useState(0);
   const [countdown, setCountdown] = useState(null);
   const [gameStarted, setGameStarted] = useState(false);
   const [gameStatus, setGameStatus] = useState(null);
@@ -87,7 +86,7 @@ const GameScreen = () => {
       clearTimeout(gameOverTimeout);
       gameOverTimeout = setTimeout(() => {
         setGameResult(null);
-        navigate(`/select-card?stake=${encodeURIComponent(stake)}`);
+        navigate(`/select-card?stake=${encodeURIComponent(stake)}`, { replace: true });
       }, 3000);
     };
 
@@ -104,7 +103,6 @@ const GameScreen = () => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     socket.on('room_update', (data) => {
       if (Number.isFinite(Number(data.players))) setPlayerCount(Number(data.players));
-      if (Number.isFinite(Number(data.readyPlayers))) setReadyPlayers(Number(data.readyPlayers));
     });
     socket.on('players_updated', (data) => {
       if (Number.isFinite(Number(data.count))) setPlayerCount(Number(data.count));
@@ -145,7 +143,6 @@ const GameScreen = () => {
       setGameStarted(true);
     });
     socket.on('sync_game_state', (data) => {
-      console.log('[SOCKET] Synced game state:', data);
       const syncedNumbers = Array.isArray(data.calledNumbers)
         ? data.calledNumbers.map(Number).filter(Number.isFinite)
         : [];
@@ -250,7 +247,7 @@ const GameScreen = () => {
       setGameResult(null);
       setSpectatorNumbers([]);
       setSpectatorBall(null);
-      navigate(`/select-card?stake=${encodeURIComponent(data.stake || stake)}`);
+      navigate(`/select-card?stake=${encodeURIComponent(data.stake || stake)}`, { replace: true });
     });
     socket.on('error', (err) => {
       const msg = String(err?.message || err || '')
@@ -258,10 +255,10 @@ const GameScreen = () => {
         msg.includes('not found') ||
         msg.includes('ended') ||
         msg.includes('already started') ||
+        msg.includes('Join the room before playing') ||
         msg.includes('ROOM_NOT_FOUND') ||
         msg.includes('GAME_ALREADY_STARTED')
       ) {
-        console.log('[Game] Active game no longer exists. Redirecting to card selection.')
         localStorage.removeItem('activeGameRoom')
         navigate(`/select-card?stake=${stake}`, { replace: true })
       }

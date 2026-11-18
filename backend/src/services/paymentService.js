@@ -27,8 +27,6 @@ async function fetchLinksEt(url, options) {
 }
 
 async function readLinksEtResponse(response) {
-  console.log('[TELEBIRR VERIFY] HTTP status:', response.status)
-
   let data
   try {
     data = await response.json()
