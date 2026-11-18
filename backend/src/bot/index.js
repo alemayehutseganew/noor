@@ -61,6 +61,7 @@ const botTranslations = {
     registrationComplete: '✅ Registration complete! Phone number: {{phone}}',
     contactFailed: '❌ Failed to save your contact. Please try again.',
     inviteEarn: '🎉 Invite & Earn 5%!\n\nShare your unique link with friends. When they win a game, you get 5% of their prize!\n\n🔗 Your Link:\n{{link}}\n\n💰 Withdraw your earnings once you reach 1,000 ETB!',
+    selectStake: 'Select a stake to play:',
     shareGroup: '📢 Share to Group/Channel',
     shareText: 'Join me on GoBingo and win big! 🎰'
   },
@@ -120,6 +121,7 @@ const botTranslations = {
     registrationComplete: '✅ ምዝገባው ተጠናቋል! ስልክ ቁጥር፦ {{phone}}',
     contactFailed: '❌ የእውቂያ መረጃዎን ማስቀመጥ አልተሳካም። እባክዎ እንደገና ይሞክሩ።',
     inviteEarn: '🎉 ይጋብዙ እና 5% ያግቡ!\n\nልዩ ሊንክዎን ለጓደኞችዎ ያጋሩ። እነሱ ሲያሸንፉ የሽልማታቸውን 5% ያገኛሉ!\n\n🔗 የእርስዎ ሊንክ፦\n{{link}}\n\n💰 ገቢዎን 1,000 ብር ሲደርስ ማውጣት ይችላሉ!',
+    selectStake: 'ለመጫወት የውለታ መጠን ይምረጡ፦',
     shareGroup: '📢 ለቡድን/ቻናል አጋራ',
     shareText: 'በዮጋቢንጎ ይቀላለቁኝ እና ትልቅ ያሸንፉ! 🎰'
   },
@@ -231,12 +233,16 @@ async function showInvite(ctx) {
 
     const shareText = botText(lang, 'shareText')
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(shareText)}`
-    await ctx.reply(botText(lang, 'inviteEarn', { link: refLink }) + SUPPORT_TEXT, {
+    const frontendUrl = process.env.FRONTEND_URL || 'https://ked-seven.vercel.app'
+    console.log('[BOT] showInvite rendered with stake buttons')
+    return await ctx.reply(`${botText(lang, 'inviteEarn', { link: refLink })}\n\n${botText(lang, 'selectStake')}${SUPPORT_TEXT}`, {
       disable_web_page_preview: true,
       reply_markup: {
         inline_keyboard: [
           [{ text: botText(lang, 'shareGroup'), url: shareUrl }],
-          ...getStakeKeyboard()
+          [{ text: '🎮 Play 10 ETB', web_app: { url: `${frontendUrl.replace(/\/$/, '')}/select-card?stake=10` } }],
+          [{ text: '🎮 Play 50 ETB', web_app: { url: `${frontendUrl.replace(/\/$/, '')}/select-card?stake=50` } }],
+          [{ text: '🎮 Play 100 ETB', web_app: { url: `${frontendUrl.replace(/\/$/, '')}/select-card?stake=100` } }]
         ]
       }
     })
