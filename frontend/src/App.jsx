@@ -34,19 +34,20 @@ export default function App() {
     if (activeRoomData) {
       try {
         const { roomId, stake } = JSON.parse(activeRoomData)
-        if (roomId && window.location.pathname !== '/game') {
+        if (roomId) {
           activeGameRoom = {
             roomId,
             stake: Number(stake) || 10,
           }
-          if (existingToken) {
-            window.location.replace(
-              `/game?roomId=${encodeURIComponent(roomId)}&stake=${encodeURIComponent(activeGameRoom.stake)}`
-            )
+          const target = `/game?roomId=${encodeURIComponent(roomId)}&stake=${encodeURIComponent(activeGameRoom.stake)}`
+          const current = `${window.location.pathname}${window.location.search}`
+          if (existingToken && current !== target) {
+            window.location.replace(target)
             return
           }
+        } else {
+          localStorage.removeItem('activeGameRoom')
         }
-        if (!roomId) localStorage.removeItem('activeGameRoom')
       } catch (err) {
         console.error('[App] Failed to parse active game data', err)
         localStorage.removeItem('activeGameRoom')
@@ -72,10 +73,14 @@ export default function App() {
           localStorage.setItem('telegramId', String(data.user.telegram_id))
           SocketService.connect(data.token)
           window.dispatchEvent(new Event('wallet-refresh'))
-          if (activeGameRoom && window.location.pathname !== '/game') {
-            window.location.replace(
-              `/game?roomId=${encodeURIComponent(activeGameRoom.roomId)}&stake=${encodeURIComponent(activeGameRoom.stake)}`
-            )
+          if (activeGameRoom) {
+            const target = `/game?roomId=${encodeURIComponent(activeGameRoom.roomId)}&stake=${encodeURIComponent(activeGameRoom.stake)}`
+            const current = `${window.location.pathname}${window.location.search}`
+            if (current !== target) {
+              window.location.replace(target)
+            } else if (!existingToken && window.location.pathname === '/game') {
+              window.location.reload()
+            }
           } else if (!existingToken && window.location.pathname === '/game') {
             window.location.reload()
           }

@@ -1,4 +1,4 @@
-import { useEffect, useState, Fragment } from 'react';
+import { useCallback, useEffect, useState, Fragment } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import CardSelection from './CardSelection';
@@ -35,6 +35,21 @@ const getBallGradient = (letter) => {
   }
 };
 
+const loadSavedMarks = (roomId) => {
+  const savedMarks = localStorage.getItem(`marked_${roomId}`);
+  if (!savedMarks) return [];
+
+  try {
+    const parsedMarks = JSON.parse(savedMarks);
+    return Array.isArray(parsedMarks)
+      ? parsedMarks.map(Number).filter((number) => Number.isInteger(number) && number >= 1 && number <= 75)
+      : [];
+  } catch (err) {
+    console.error('Failed to parse saved marks', err);
+    return [];
+  }
+};
+
 const GameScreen = () => {
   const socket = SocketService.get() || SocketService.connect()
   const [searchParams] = useSearchParams();
@@ -49,7 +64,24 @@ const GameScreen = () => {
   const [calledNumbers, setCalledNumbers] = useState([]);
   const [currentBall, setCurrentBall] = useState(null);
   const [calledHistory, setCalledHistory] = useState([]);
-  const [markedNumbers, setMarkedNumbers] = useState([]);
+  const [markedNumbersState, setMarkedNumbersState] = useState(() => ({
+    roomId,
+    numbers: loadSavedMarks(roomId),
+  }));
+  const markedNumbers = markedNumbersState.roomId === roomId
+    ? markedNumbersState.numbers
+    : loadSavedMarks(roomId);
+  const setMarkedNumbers = useCallback((nextValue) => {
+    setMarkedNumbersState((currentState) => {
+      const currentNumbers = currentState.roomId === roomId
+        ? currentState.numbers
+        : loadSavedMarks(roomId);
+      return {
+        roomId,
+        numbers: typeof nextValue === 'function' ? nextValue(currentNumbers) : nextValue,
+      };
+    });
+  }, [roomId]);
   const [cardsData, setCardsData] = useState([]);
   const [playerCount, setPlayerCount] = useState(0);
   const playersCount = playerCount;
@@ -70,6 +102,17 @@ const GameScreen = () => {
     toggleVoice(newState);
     if (newState) unlockAudio();
   };
+
+  useEffect(() => {
+    if (!roomId || markedNumbersState.roomId !== roomId) return;
+
+    const storageKey = `marked_${roomId}`;
+    if (markedNumbersState.numbers.length > 0) {
+      localStorage.setItem(storageKey, JSON.stringify(markedNumbersState.numbers));
+    } else {
+      localStorage.removeItem(storageKey);
+    }
+  }, [markedNumbersState, roomId]);
 
   useEffect(() => {
     toggleVoice(false);
@@ -139,6 +182,8 @@ const GameScreen = () => {
     });
     socket.on('game_aborted', (data) => {
       localStorage.removeItem('activeGameRoom');
+      localStorage.removeItem(`marked_${roomId}`);
+      setMarkedNumbers([]);
       alert(`⚠️ ${data.message}`);
       window.location.href = '/';
     });
@@ -194,6 +239,8 @@ const GameScreen = () => {
     });
     socket.on('game_over', (data) => {
       localStorage.removeItem('activeGameRoom');
+      localStorage.removeItem(`marked_${roomId}`);
+      setMarkedNumbers([]);
       if (data?.reason === 'no_winner' || (Array.isArray(data?.winners) && data.winners.length === 0)) {
         setGameResult({
           type: 'loss',
@@ -252,6 +299,8 @@ const GameScreen = () => {
     });
     socket.on('room_reset', (data) => {
       localStorage.removeItem('activeGameRoom');
+      localStorage.removeItem(`marked_${roomId}`);
+      setMarkedNumbers([]);
       clearTimeout(gameOverTimeout);
       setGameResult(null);
       setSpectatorNumbers([]);
@@ -269,6 +318,8 @@ const GameScreen = () => {
         msg.includes('GAME_ALREADY_STARTED')
       ) {
         localStorage.removeItem('activeGameRoom')
+        localStorage.removeItem(`marked_${roomId}`)
+        setMarkedNumbers([])
         navigate(`/select-card?stake=${stake}`, { replace: true })
       }
     });
@@ -307,7 +358,7 @@ const GameScreen = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearTimeout(gameOverTimeout);
     };
-  }, [socket, roomId, userId, stake, isSpectator, navigate]);
+  }, [socket, roomId, userId, stake, isSpectator, navigate, setMarkedNumbers]);
 
   const handleDaub = (num) => {
     if (!calledNumbers.map(Number).includes(Number(num))) return;
@@ -447,6 +498,7 @@ const GameScreen = () => {
         onCardUpdated={(updatedCard) => {
           setCardsData([updatedCard]);
           setMarkedNumbers([]);
+          localStorage.removeItem(`marked_${roomId}`);
         }}
       />
     );

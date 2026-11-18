@@ -667,10 +667,7 @@ function initGameHandler(io) {
       try {
         const roomState = await db('game_rooms as r')
           .innerJoin('users as u', 'u.id', '=', db.raw('?', [socket.data.userId]))
-          .leftJoin('room_participants as rp', function () {
-            this.on('rp.room_id', '=', 'r.id').andOn('rp.user_id', '=', 'u.id')
-          })
-          .select('r.*', 'u.id as authenticated_user_id', 'rp.id as participant_id')
+          .select('r.*', 'u.id as authenticated_user_id')
           .where('r.id', roomId)
           .first()
         if (!roomState) {
@@ -680,7 +677,9 @@ function initGameHandler(io) {
 
         const user = { id: roomState.authenticated_user_id }
         const persistedRoom = roomState
-        const participant = roomState.participant_id ? { id: roomState.participant_id } : null
+        const participant = await db('room_participants')
+          .where({ room_id: roomId, user_id: user.id })
+          .first()
         const playerCards = participant
           ? await db('room_card_selections').where({ room_id: roomId, user_id: user.id })
           : []
@@ -689,10 +688,13 @@ function initGameHandler(io) {
         socket.join(String(roomId))
         socket.emit('players_updated', { count: await getPlayerCount(roomId) })
 
+        const isReconnectingActivePlayer = participant &&
+          ['COUNTDOWN', 'PLAYING', 'CLAIMING'].includes(persistedRoom.status)
         if (
           observeOnly &&
           (!participant || !cardSelection) &&
-          !['PLAYING', 'CLAIMING', 'ENDED'].includes(persistedRoom.status)
+          !['PLAYING', 'CLAIMING', 'ENDED'].includes(persistedRoom.status) &&
+          !isReconnectingActivePlayer
         ) return
 
         if (spectator && persistedRoom.status === 'WAITING' && (!participant || !cardSelection)) {
@@ -718,7 +720,8 @@ function initGameHandler(io) {
           scheduleClaimSettlement(io, roomId, rooms[roomId])
         }
 
-        if (participant && ['COUNTDOWN', 'PLAYING', 'CLAIMING'].includes(persistedRoom.status)) {
+        if (isReconnectingActivePlayer) {
+          console.log(`[Game] User ${user.id} reconnecting to active room ${roomId}`)
           const room = rooms[roomId]
           if (room.status === 'PLAYING' && !room.intervalId) {
             startGameLoop(io, roomId, room)
